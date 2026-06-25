@@ -1,0 +1,58 @@
+name: 데이터 자동수집 (매시간)
+
+on:
+  schedule:
+    - cron: '7 * * * *'      # 매시간 7분 (UTC) — 청약홈·금리·LH 공공분양 갱신
+  workflow_dispatch:          # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 상태(_master.json) 복원
+        uses: actions/cache@v4
+        with:
+          path: api_공고
+          key: cheongyak-master-${{ github.run_id }}
+          restore-keys: cheongyak-master-
+
+      - name: 인증키 준비 (Secrets → 파일)
+        run: |
+          printf '%s' "${{ secrets.DATA_GO_KR_KEY }}" > _apikey.txt
+          printf '%s' "${{ secrets.FINLIFE_KEY }}" > _finlife_key.txt
+
+      - name: 수집기 실행
+        run: |
+          python fetch_cheongyak.py || echo "청약홈 수집 일부 실패"
+          python fetch_rates.py || echo "금리 수집 실패"
+          python fetch_lh.py || echo "LH 수집 실패"
+
+      - name: 키 삭제 + 데이터 커밋
+        run: |
+          rm -f _apikey.txt _finlife_key.txt _lh_debug.json
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for f in presets_auto.js rates_auto.js lh_auto.js; do
+            [ -f "$f" ] && git add "$f"
+          done
+          if git diff --staged --quiet; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git commit -m "데이터 자동 갱신 (UTC $(date -u +'%F %H:%M'))"
+            git push
+          fi

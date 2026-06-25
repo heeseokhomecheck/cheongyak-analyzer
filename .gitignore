@@ -1,0 +1,16 @@
+# 인증키·민감정보 (절대 커밋 금지 — GitHub Secrets로 관리)
+_apikey.txt
+_finlife_key.txt
+_lh_key.txt
+
+# 상태·로그·디버그 (Actions 캐시/런타임 생성)
+api_공고/
+_lh_debug.json
+fetch.log
+_txt/
+
+# 원본 추출물·오프라인 스냅샷 (배포 불필요)
+공고_*.json
+*.pdf
+청약분석기_단일파일.html
+cheongyak.html
