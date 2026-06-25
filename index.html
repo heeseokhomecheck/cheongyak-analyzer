@@ -78,6 +78,18 @@
   .kv .r{text-align:right}
   .muted{color:var(--dim)}
   .small{font-size:12px}
+  /* ⓘ 도움말 툴팁 */
+  .tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;
+    background:#C4CCD4;color:#fff;font-size:10px;font-weight:700;font-style:normal;cursor:help;margin-left:4px;
+    vertical-align:middle;position:relative}
+  .tip:hover,.tip.on{background:var(--accent)}
+  .tip::after{content:attr(data-tip);position:absolute;bottom:150%;left:50%;transform:translateX(-50%);
+    background:#191F28;color:#fff;padding:9px 11px;border-radius:9px;font-size:12px;font-weight:500;line-height:1.55;
+    width:230px;max-width:60vw;white-space:normal;text-align:left;box-shadow:0 6px 22px rgba(17,24,39,.22);
+    opacity:0;visibility:hidden;pointer-events:none;transition:.15s;z-index:60}
+  .tip::before{content:'';position:absolute;bottom:150%;left:50%;transform:translate(-50%,90%);
+    border:6px solid transparent;border-top-color:#191F28;opacity:0;visibility:hidden;transition:.15s;z-index:60}
+  .tip:hover::after,.tip.on::after,.tip:hover::before,.tip.on::before{opacity:1;visibility:visible}
   .tag{font-size:11px;color:var(--dim);background:var(--chip);padding:2px 8px;border-radius:6px;margin-left:6px;font-weight:600}
   .reco{border:1px solid #CADFFB;background:linear-gradient(180deg,#F5FAFF,#EAF3FE);border-radius:14px;padding:16px;margin-bottom:10px}
   .reco h3{margin:0 0 4px;color:var(--accent2);font-size:16px;font-weight:700}
@@ -1402,6 +1414,47 @@ function renderGonggoInfo(){
 })();
 restoreMe(); restoreFin();
 populateGugun(ME&&ME.gugun);  // 저장된 시·도에 맞춰 시·군구 목록 복원
+
+// ⓘ 도움말 툴팁 — 칸 라벨에 자동 주입
+const FIELD_TIPS={
+  m_sido:"실제 거주 중인 시·도. 공고 위치와 비교해 해당지역/기타지역 1순위를 판정합니다.",
+  m_gugun:"실제 거주 시·군·구. 도(경기 등)는 시/군 단위가 해당지역, 특별·광역시(서울 등)는 시 전체가 해당지역이라 구는 무관.",
+  m_resideMonths:"현 주소에 연속으로 산 개월. 규제지역(투기과열·청약과열)은 보통 2년(24개월)↑ 살아야 '해당지역 우선'.",
+  m_householder:"주민등록등본상 세대주/세대원. 생애최초·노부모부양 특공과 규제지역 1순위는 세대주만 가능.",
+  m_houses:"공공분양은 나뿐 아니라 세대구성원(배우자·직계존비속·동거인) 전원이 무주택이어야 합니다. 세대 전체 기준으로 입력하세요.",
+  m_income:"세대구성원(본인·배우자·직계존비속 등 가족) 전원의 세전 월소득 합계. 가족관계 없는 동거인은 합산하지 않습니다(각자 본인 세대 기준).",
+  m_age:"만 나이. 무주택기간 가점이 만 30세부터 계산되므로 정확히 넣으면 가점이 정확해집니다.",
+  m_nohomeYears:"무주택으로 지낸 기간. 가점은 만 30세부터(30세 전 혼인 시 혼인신고일부터) 계산되고, 그 전 기간은 0점.",
+  m_dependents:"등본상 함께 사는 부양가족 수(본인 제외). 민영 가점 최대 35점(가장 큰 비중).",
+  m_acctMonths:"청약통장 가입 후 지난 개월. 1순위 자격 + 민영 가점(최대 17점). 오래될수록 유리.",
+  m_payCount:"공공분양 전용. 매월 1회씩 인정(한 달에 여러 번 넣어도 1회). 전용 40㎡ 이하 당락을 가릅니다.",
+  m_savings:"공공분양 핵심. 매월 납입액 중 인정한도(2024.11~ 25만·이전 10만)까지 누적된 금액. 청약홈>청약통장>가입내역에서 '인정금액'으로 조회. 전용 40㎡ 초과 당락.",
+  m_deposit:"민영주택 1순위용. 지역·면적별 기준금액(예: 서울 85㎡↓ 300만·102㎡↓ 600만)을 청약 전까지 채우면 됩니다. 한 번에 넣어도 OK.",
+  m_hhSize:"본인 포함 세대구성원 수. 소득기준표(도시근로자 월평균소득)의 가구원수 기준이 됩니다.",
+  m_dual:"본인+배우자 둘 다 소득이 있으면 맞벌이. 특공 소득기준이 완화됩니다.",
+  m_asset:"공공분양·특공 자산기준. 부동산 공시가격 합계(공공 한도 2억1,550만 / 민영 추첨 3억3,100만). 신혼희망은 총자산.",
+  m_car:"보유 자동차 가액(공공 특공 한도 4,542만원). 2대 이상이면 합산.",
+  m_marital:"혼인신고 기준. 신혼부부 특공은 '기혼(신고O) 7년 이내'만. 사실혼/동거(신고X)는 예비신혼부부로만 일부 가능.",
+  m_marryYears:"혼인신고일부터 지난 기간. 신혼부부 특공은 7년 이내.",
+  m_children:"만 19세 미만 자녀 수. 다자녀 특공은 2명 이상(태아·입양 포함).",
+  m_newborn:"공고일 기준 2년 이내 임신·출산(입양 포함). 신생아 특공·우선공급 대상이며 혼인 여부는 무관.",
+  m_firstever:"본인과 배우자가 과거에 주택을 소유한 적이 한 번도 없어야 생애최초 특공 가능.",
+  m_pastWin:"최근 5년 내 다른 청약에 당첨된 세대는 규제지역 1순위·재당첨 제한에 걸릴 수 있습니다."
+};
+Object.entries(FIELD_TIPS).forEach(([id,tip])=>{
+  const el=document.getElementById(id); if(!el) return;
+  const field=el.closest('.field'); const label=field&&field.querySelector('label');
+  if(label && !label.querySelector('.tip')){
+    const s=document.createElement('span'); s.className='tip'; s.setAttribute('data-tip',tip); s.textContent='i';
+    label.appendChild(s);
+  }
+});
+// 모바일: 탭하면 토글, 바깥 탭하면 닫힘
+document.addEventListener('click',e=>{
+  const t=e.target.closest && e.target.closest('.tip');
+  document.querySelectorAll('.tip.on').forEach(x=>{ if(x!==t) x.classList.remove('on'); });
+  if(t){ t.classList.toggle('on'); e.stopPropagation(); }
+});
 </script>
 </body>
 </html>
