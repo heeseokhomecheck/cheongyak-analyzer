@@ -1066,6 +1066,14 @@ function acqTax(baseManwon, over85, houses, regulated, override){
   const total=rate+edu+nong;
   return {total, rateTxt:`본세 ${rate.toFixed(1)}%+교육세 ${edu.toFixed(1)}%${nong?`+농특세 ${nong.toFixed(1)}%`:''}`, tax:Math.round(baseManwon*total/100)};
 }
+/* 생애최초 취득세 감면: 12억 이하 + 무주택 + 생애최초 → 200만원 한도 면제(소득요건 없음, 3년 실거주 의무) */
+function firstHomeDiscount(t, priceManwon, isFirstHome, houses){
+  if(t.rateTxt!=='직접입력' && isFirstHome && Number(houses)<=0 && priceManwon<=120000 && t.tax>0){
+    const disc=Math.min(200, t.tax);
+    return Object.assign({}, t, {tax:t.tax-disc, discount:disc});
+  }
+  return Object.assign({}, t, {discount:0});
+}
 /* ===== 대출 정책 (2025.6.27 대책, 수도권) — 바뀌면 여기만 수정 ===== */
 const POLICY_LOAN = {
   수도권한도: 60000,     // 주담대 최대 6억(구입목적, 가격무관)
@@ -1114,7 +1122,9 @@ function moneyHTML(){
   const etc=Number(FIN.etc||0);
   const over85 = selArea!=null ? selArea>85 : Number(FIN.over85)===1;
   const taxBase=price+opt;
-  const tax=acqTax(taxBase, over85, houses, CFG.regulated, Number(FIN.taxOverride||0));
+  const isFirstHome = Number((ME&&ME.firstever))===1;
+  let tax=acqTax(taxBase, over85, houses, CFG.regulated, Number(FIN.taxOverride||0));
+  tax=firstHomeDiscount(tax, taxBase, isFirstHome, houses);
   const totalCost=price+opt+tax.tax+etc;
 
   // 대출 (6.27 대책 반영)
@@ -1145,7 +1155,7 @@ function moneyHTML(){
   // 타입별 필요현금 표 (고를 필요 없이 전 타입 비교)
   const typeRows=(CFG.types||[]).filter(t=>Number(t.price)>0).sort((a,b)=>a.price-b.price).map(t=>{
     const pp=Number(t.price), o85=(+t.area>85);
-    const tx=acqTax(pp+opt,o85,houses,CFG.regulated,0), tot=pp+opt+tx.tax+etc;
+    const tx=firstHomeDiscount(acqTax(pp+opt,o85,houses,CFG.regulated,0), pp+opt, isFirstHome, houses), tot=pp+opt+tx.tax+etc;
     const ln=Math.max(0,Math.min(pp*ltv/100,cap,dsrLim)), cl=tot-ln;
     const jn=Math.round(pp*jeonseRate/100), cg=tot-jn;
     const sel=(FIN.type&&FIN.type===t.name)||(!FIN.type&&priceType.indexOf(t.name)===0);
@@ -1172,6 +1182,8 @@ function moneyHTML(){
       <div class="kv"><span>분양가 ${priceType?`<span class="muted small">${priceType}</span>`:''}</span><span class="r">${won(price)}만 <span class="muted small">(${eokStr(price)})</span></span></div>
       <div class="kv"><span>유상옵션 합계</span><span class="r">${won(opt)}만</span></div>
       <div class="kv"><span>취득세 <span class="muted small">${tax.rateTxt} · 과표 ${eokStr(taxBase)}</span></span><span class="r">${won(tax.tax)}만 <span class="muted small">(${tax.total.toFixed(2)}%)</span></span></div>
+      ${tax.discount>0?`<div class="small" style="color:var(--ok);text-align:right">✅ 생애최초 취득세 감면 <b>-${won(tax.discount)}만</b> 적용 (12억↓·소득무관) · ⚠️ 단 <b>3년 실거주 의무</b>(어기면 추징 → 갭투자 불가)</div>`:''}
+      ${(isFirstHome&&Number(houses)<=0&&taxBase>120000)?`<div class="small muted" style="text-align:right">생애최초 감면은 12억 이하만 — 이 단지는 초과로 미적용</div>`:''}
       <div class="kv"><span>부대비용</span><span class="r">${won(etc)}만</span></div>
       <div class="kv"><span><b>총 취득원가</b></span><span class="r big">${won(totalCost)}만</span></div>
     </div>
