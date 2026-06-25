@@ -1160,24 +1160,23 @@ function moneyHTML(){
     const jn=Math.round(pp*jeonseRate/100), cg=tot-jn;
     const sel=(FIN.type&&FIN.type===t.name)||(!FIN.type&&priceType.indexOf(t.name)===0);
     const cashCmp=v=>myCash>0?(myCash>=v?' ✅':' ❌'):'';
-    return `<tr${sel?' style="background:rgba(245,196,81,.13)"':''}>
+    return `<tr${sel?' style="background:var(--chip)"':''}>
       <td style="text-align:left"><b>${t.name.replace(/^0+/,'')}</b> <span class="muted small">${(+t.area).toFixed(0)}㎡</span></td>
       <td>${eokStr(pp)}</td>
-      <td style="color:var(--gold)"><b>${eokStr(cl)}</b><span class="small">${cashCmp(cl)}</span></td>
-      <td>${jeonseBlocked?'<span class="muted">불가</span>':`<b style="color:var(--gold)">${eokStr(cg)}</b><span class="small">${cashCmp(cg)}</span>`}</td>
+      <td class="muted">${eokStr(ln)}</td>
+      <td style="color:var(--accent2)"><b>${eokStr(cl)}</b><span class="small">${cashCmp(cl)}</span></td>
+      <td>${jeonseBlocked?'<span class="muted">불가</span>':`<b style="color:var(--accent2)">${eokStr(cg)}</b><span class="small">${cashCmp(cg)}</span>`}</td>
     </tr>`;
   }).join('');
 
-  let h=`<div class="card"><h2>💰 자금 — 타입별 필요현금</h2>
-    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>① 실입주<br>순수현금</th><th>② 전세끼고<br>순수현금</th></tr></thead><tbody>${typeRows}</tbody></table></div>
-      <div class="small muted" style="margin-top:6px">①주담대 차감 / ②전세보증금 차감 후 <b>내 순수현금</b>. ${myCash>0?'✅=보유현금 충분 / ❌=부족.':'보유현금 입력 시 ✅❌ 표시.'} 같은 대출·전세가율 가정. 아래는 선택 타입 상세.</div>`:''}
+  let h=`<div class="card"><h2>💰 타입별 필요현금 — 한눈에</h2>
+    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>대출<br>가능</th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th></tr></thead><tbody>${typeRows}</tbody></table></div>
+      <div class="small muted" style="margin-top:8px">①·②는 <b>취득세·옵션 포함 총원가</b>에서 (①주담대 / ②전세보증금)을 뺀 <b>내 순수현금</b>이에요. ${myCash>0?'✅=보유현금 충분 / ❌=부족.':'자금 가정에 보유현금 넣으면 ✅❌ 표시.'}${isFirstHome?' 생애최초 취득세 감면 반영.':''}<br>공통 가정: LTV ${ltv}% · DSR ${FIN.dsr||40}% · 금리 ${FIN.rate||4}% · 전세가율 ${jeonseRate}% (자금 가정에서 조정).</div>`:''}
     ${price<=0?`<div class="note" style="border-color:var(--warn)">⏳ <b>분양가 미확보</b> — ${CFG._scraped?'청약홈 실시간 수집분이라 아직 분양가가 안 들어왔습니다(API 동기화 후 타입별 자동 반영).':'이 공고는 타입별 분양가가 아직 수집되지 않았습니다(API 미동기화 또는 무순위/오피스텔 등).'}
       ${(CFG.types&&CFG.types.length)?`<div class="small" style="margin-top:5px">확인된 타입: <b>${CFG.types.map(t=>t.name.replace(/^0+/,'')).join(' · ')}</b></div>`:''}
-      <div class="small" style="margin-top:5px;color:var(--gold)">👉 <b>자금 가정 → 분양가(만원)</b> 칸에 숫자를 넣으면 취득세·대출·전세 순수현금까지 즉시 계산됩니다.</div></div>`:
-      `<div class="row" style="gap:14px;margin-bottom:10px">
-        <div style="flex:1;min-width:160px;background:#141c2e;border:1px solid var(--line);border-radius:10px;padding:12px"><div class="muted small">① 바로 실입주 (주담대)</div><div class="big" style="color:var(--gold)">${eokStr(cashLive)}</div><div class="small muted">현금 필요${myCash>0?(myCash>=cashLive?' · ✅가능':' · ❌부족 '+eokStr(cashLive-myCash)):''}</div></div>
-        <div style="flex:1;min-width:160px;background:#141c2e;border:1px solid var(--line);border-radius:10px;padding:12px"><div class="muted small">② 전세 끼고 (실거주X)</div><div class="big" style="color:var(--gold)">${jeonseBlocked?'불가':eokStr(cashGap)}</div><div class="small muted">${jeonseBlocked?'거주의무 단지':'현금 필요'+(myCash>0&&!jeonseBlocked?(myCash>=cashGap?' · ✅가능':' · ❌부족'):'')}</div></div>
-      </div>`}
+      <div class="small" style="margin-top:5px;color:var(--accent)">👉 <b>자금 가정 → 분양가(만원)</b> 칸에 숫자를 넣으면 취득세·대출·전세 필요현금까지 즉시 계산됩니다.</div></div>`:''}
+    ${price>0?'<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 대표 '+(priceType||'타입')+' 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>':''}
+    <div${price>0?'':' style="display:none"'}>
     <div class="res-block"><h3>취득 원가</h3>
       <div class="kv"><span>분양가 ${priceType?`<span class="muted small">${priceType}</span>`:''}</span><span class="r">${won(price)}만 <span class="muted small">(${eokStr(price)})</span></span></div>
       <div class="kv"><span>유상옵션 합계</span><span class="r">${won(opt)}만</span></div>
@@ -1231,6 +1230,7 @@ function moneyHTML(){
       <div class="small muted" style="margin-top:8px">⚠️ 실거주의무·전매제한·대출규제는 <b>수시로 바뀝니다</b>(분상제 거주의무도 현재 유예). 계약 전 공고문·국토교통부·청약홈에서 최신 규정을 확인하세요.</div>
     </div>
     <div class="note">취득세 다주택 중과·부가세는 근사치입니다. 정확액은 위택스, 대출한도는 은행 상담으로 확인하세요.</div>
+    </div>
   </div>`;
   return h;
 }
