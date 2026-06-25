@@ -14,3 +14,8 @@ _txt/
 *.pdf
 청약분석기_단일파일.html
 cheongyak.html
+
+# ���̽� ĳ��
+__pycache__/
+*.pyc
+_latest.py
