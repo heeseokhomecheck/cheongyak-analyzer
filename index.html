@@ -692,6 +692,17 @@ function analyze(switchTab){
   recoHtml+=`</div>`;
   out.push(recoHtml);
 
+  // ===== 유형별 자동 안내 — 이 공고에서 뭐가 핵심인지 =====
+  const guideByMode={
+    '민영':'민간분양은 <b>가점</b>(무주택기간·부양가족·통장 가입기간)과 <b>추첨</b>이 핵심. 1순위엔 면적별 <b>예치금</b>이 필요해요. 일반공급은 소득·자산 요건이 없습니다(특별공급만 있음).',
+    '공공':'공공분양은 가점이 아니라 <b>순차제</b> — 무주택 3년↑ 중 <b>저축총액(40㎡ 초과)·납입회차(40㎡ 이하)</b> 많은 순. 일반공급도 <b>소득(60㎡↓)·자산</b> 요건이 있고, <b>세대원 전원 무주택</b>이어야 해요.',
+    '신혼희망타운':'신혼희망타운은 <b>배점제 + 총자산 한도(3.97억)</b>가 핵심 — 가점·순차제가 아닙니다. 소득·자녀·혼인기간으로 배점돼요.',
+    '오피스텔':'<b>추첨</b>이라 가점·소득·통장 거의 무관. 자금(분양가·중도금)과 전매·실거주 조건만 확인하면 됩니다.',
+    '무순위':'<b>추첨(줍줍)</b> — 자격 문턱이 낮아요(해당지역 무주택 조건이 붙기도). 자금·전매·실거주만 확인.',
+    '임의공급':'<b>추첨</b> — 미달분 임의공급. 자격 문턱 낮고 자금 조건 위주로 확인하세요.'
+  };
+  out.push(`<div class="info">📌 <b>이 공고는 ${modeLabelOf(mode)}</b> — ${guideByMode[mode]||guideByMode['민영']}</div>`);
+
   // ===== 요약 =====
   let applyLine;
   if(mode==='민영') applyLine = isNoHome?'<span class="pill ok">가점제 가능</span>':'<span class="pill bad">가점제 불가(무주택만)</span> <span class="muted small">→ 추첨제 검토</span>';
@@ -726,9 +737,17 @@ function analyze(switchTab){
     if(_reg) chk.push({ok:_headOk, t:'세대주 (규제지역 필수)'});
     if(mode==='공공'&&!isNoHome) chk[1].ok=false;
     const allOk=chk.every(x=>x.ok);
+    // 민영 예치금 자동 판정: 통장 예치금 vs 이 공고 최대 요구 예치금
+    const maxDep=Math.max(0,...(c.types||[]).map(t=>Number(t.deposit)||0));
+    const myDep=Number(m.deposit||0);
+    const depLine = (mode==='민영'&&maxDep>0)
+      ? (myDep<=0
+          ? `<div class="small muted">💳 예치금: 이 공고 최대 <b>${won(maxDep)}만</b> 필요 — 통장 예치금 입력 시 충족 여부 판정</div>`
+          : `<div class="small">💳 예치금 <b>${won(myDep)}/${won(maxDep)}만</b> ${myDep>=maxDep?'<span class="pill ok">충족</span>':`<span class="pill warn">${won(maxDep-myDep)}만 부족</span>`}</div>`)
+      : `<div class="small muted">+ 면적별 <b>예치금</b> 충족 필요 — 지역·면적별 상이(서울 85㎡↓ 300만 등), 공고 확인</div>`;
     qualVal=`${allOk?'<span class="pill ok">충족(추정)</span>':'<span class="pill bad">미충족 항목 ❌</span>'}
       <div class="small" style="margin-top:4px;line-height:1.7">${chk.map(x=>`${x.ok?'✅':'❌'} ${x.t}`).join(' &nbsp;·&nbsp; ')}</div>
-      <div class="small muted">+ 면적별 <b>예치금</b> 충족 필요 — 지역·면적별로 다름(예: 서울 85㎡↓ 300만), 공고에서 확인</div>`;
+      ${depLine}`;
   }
   out.push(`<div class="card"><h2>📌 요약 — ${c.name}</h2>
     <div class="kv"><span>접수 일정</span><span class="r">${scheduleLine}</span></div>
@@ -1227,7 +1246,8 @@ function moneyHTML(){
       <div class="kv"><span>DSR ${FIN.dsr||40}% <span class="muted small">스트레스+${stressPP}%p·${FIN.rate||4}%·${FIN.term||30}년·${repay}</span></span><span class="r">${dsrLim===Infinity?'소득입력 필요':won(dsrLim)+'만'}</span></div>
       <div class="kv"><span><b>실제 주담대</b></span><span class="r big">${won(loan)}만 <span class="muted small">← ${loanWhich}</span></span></div>
       ${loan>0?`<div class="kv"><span>📅 월 상환액 <span class="muted small">원리금균등·${FIN.rate||4}%·${FIN.term||30}년</span></span><span class="r"><b style="color:var(--accent2)">${won(monthlyPayment(loan,FIN.rate||4,FIN.term||30))}만원/월</b></span></div>
-      ${CFG.supplyType==='신혼희망타운'?`<div class="small muted" style="text-align:right">💡 신혼희망타운은 <b>전용 수익공유형 모기지</b>(연 1%대 고정, 집값 일부 공유) 선택 시 월 상환액이 크게 줄어요. 위는 일반 주담대 기준이라, 금리 칸을 전용대출 금리로 바꿔보세요.</div>`:''}`:''}
+      ${CFG.supplyType==='신혼희망타운'?`<div class="kv" style="background:#EAF2FE;border-radius:8px;padding:7px 9px;margin-top:5px"><span>💞 신희타 전용 모기지 <span class="muted small">연 1.3% 고정 가정·${FIN.term||30}년</span></span><span class="r"><b style="color:var(--accent2)">${won(monthlyPayment(loan,1.3,FIN.term||30))}만원/월</b></span></div>
+      <div class="small muted" style="text-align:right">수익공유형(집값 일부를 기금과 공유) 기준 추정 — 일반 주담대보다 월 상환이 크게 낮아요. 총자산 3.62억↑ 주택은 의무가입. 실제 금리·한도·조건은 신청 시 확인.</div>`:''}`:''}
       ${repay==='원금균등'?`<div class="small muted" style="text-align:right">원금균등은 초기 상환액이 커 DSR 한도가 가장 작게 잡힙니다.</div>`:''}
       ${repay==='체증식'?`<div class="small" style="color:var(--warn);text-align:right">⚠️ 체증식은 초기 상환부담이 낮지만, 현행 DSR 규제상 한도 이점이 제한돼 <b>균등상환 기준으로 보수 산정</b>했습니다(실제 한도는 은행 확인).</div>`:''}
       ${(loan===cap&&cap!==Infinity&&ltvLimit>cap)?`<div class="small" style="color:var(--bad);margin-top:4px">⚠️ LTV로는 ${won(ltvLimit)}만 되지만, 6.27 대책으로 <b>${eokStr(price)} 주택은 ${capLabel}까지만</b> 나옵니다.</div>`:''}
@@ -1400,9 +1420,12 @@ function renderPresetOptions(filter){
   }
   open.sort((a,b)=>{ const am=mySido&&(a.p.region||'').includes(mySido)?0:1, bm=mySido&&(b.p.region||'').includes(mySido)?0:1; return am-bm || a.vis.sort-b.vis.sort; });
   const typeTag=st=>({'민영':'🏢아파트','공공':'🏛아파트(공공)','신혼희망타운':'💞신혼희망','오피스텔':'🏬오피스텔','무순위':'♻️무순위','임의공급':'🎲임의공급'}[st]||'🏢');
-  const opt=x=>{const end=(x.p._source.접수종료||'').slice(5).replace('-','/');
-    const pending = (x.p._scraped || !(x.p.types&&x.p.types.length)) ? ' · ⏳상세 업데이트예정' : '';
-    return `<option value="${x.v}">${typeTag(x.p.supplyType)} | ${x.vis.tag} | ${x.p.name} · ${x.p.region} (~${end})${pending}</option>`;};
+  const icon={'민영':'🏢','공공':'🏛','신혼희망타운':'💞','오피스텔':'🏬','무순위':'♻️','임의공급':'🎲'};
+  const opt=x=>{
+    const st=x.vis.tag.replace('🟢 접수중 ','').replace(/⏰ 오늘 마감.*/,'⏰오늘마감').replace('🔜 ','🔜').replace('일 뒤 접수','일뒤');
+    const pending=(x.p._scraped||!(x.p.types&&x.p.types.length))?'⏳':'';
+    const nm=x.p.name.length>24?x.p.name.slice(0,23)+'…':x.p.name;
+    return `<option value="${x.v}">${icon[x.p.supplyType]||'🏢'} ${nm}${pending} · ${st}</option>`;};
   let html='<option value="default">— 직접 입력 (빈 양식) —</option>';
   if(regionNote) html+='<option value="" disabled>📍 내 지역 공고만 표시 중 — 다른 지역은 위 검색창에 지역명 입력</option>';
   html += `<optgroup label="🟢 지금 넣을 수 있는 공고 ${open.length}개${regionNote} (마감 임박순)">` +
