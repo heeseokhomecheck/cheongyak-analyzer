@@ -1021,10 +1021,11 @@ function analyze(switchTab){
   out.push(moneyHTML());
 
   out.push(`<div class="info">💑 <b>세대·동거인 참고</b> — 청약의 ‘세대’는 주민등록표상 본인·배우자·직계존비속입니다. 혼인신고를 안 한 커플이나 가족관계 없는 동거인은 <b>서로의 세대원·부양가족으로 인정되지 않습니다</b>. <b style="color:var(--warn)">⚠️ 단, 같은 집(현관 공유 아파트·빌라)에 함께 살면 행정상 한 세대로 묶여 ‘각자 세대주’가 되지 않습니다</b> — 각자 세대주가 되려면 ① 주소를 달리해 따로 살거나 ② 독립 출입문·취사시설·욕실을 갖춘 다가구/단독이어야 합니다. 이 요건을 갖춰 <b>각자 별도 세대주</b>라면 각각 1순위 청약이 가능하나, 상대의 주택을 부양가족 가점에 넣을 수 없고 신혼부부 특공도 불가합니다(혼인신고 필요). 신생아 특공은 혼인 여부와 무관하게 2년내 출생아 기준으로 신청 가능합니다.</div>`);
-  out.push(`<div class="card"><h2>📜 적용 중인 부동산 규제 <span class="tag">2026.6 현재 적용</span></h2>
+  out.push(`<div class="card"><h2>📜 적용 중인 부동산 규제 <span class="tag">${POLICY_ASOF} 기준</span></h2>
     <div class="sub">이 분석에 반영된 정책입니다. 새 대책이 나오면 갱신됩니다.</div>
     ${POLICY_META.map(p=>`<div class="kv"><span><b>${p.name}</b> <span class="muted small">${p.date}</span></span><span class="r small" style="max-width:62%">${p.detail}</span></div>`).join('')}
-    <div class="small muted" style="margin-top:8px">규제·대출·거주의무는 단지·시점마다 다를 수 있어요. 핵심 결정 전 공고문과 은행 상담으로 확인하세요.</div>
+    <div class="note" style="margin-top:10px">📅 <b>지금 시점(${POLICY_ASOF}) 규제 기준입니다.</b> 청약 당첨 ~ 입주(잔금)까지 보통 <b>2~3년</b> 걸려, 그 사이 LTV·DSR·대출한도가 <b>바뀔 수 있어요</b>. 특히 대출은 <b>잔금 시점 규제</b>가 적용되니 입주 직전 최신 규정으로 다시 확인하세요.</div>
+    <div class="small muted" style="margin-top:6px">규제·대출·거주의무는 단지·시점마다 다를 수 있어요. 핵심 결정 전 공고문과 은행 상담으로 확인하세요.</div>
   </div>`);
   out.push(`<div class="note">본 분석은 입력값·공고 데이터 기반 <b>추정</b>입니다. 최종 자격·순위·커트라인은 입주자모집공고문과 청약홈(applyhome.co.kr)에서 확인하세요.</div>`);
 
@@ -1114,6 +1115,7 @@ function ltvFor(reg, houses, isFirstHome){   // 실수요 LTV + 사유
 }
 function isSudogwon(region){ return /서울|경기|인천/.test(region||''); }
 /* 적용 중인 부동산 규제 요약 (시행일·근거) — 새 대책 나오면 여기 갱신 */
+const POLICY_ASOF='2026.6';   // 정책 기준일 — 새 대책 반영 시 갱신
 const POLICY_META = [
   {name:'규제지역', date:'10.15 대책', detail:'서울 전역 투기과열·조정 / 경기 12곳(과천·광명·성남·수원일부·안양동안·용인수지·의왕·하남) 조정'},
   {name:'대출', date:'6.27+10.15', detail:'수도권 가격별 한도 15억↓6억·15~25억4억·25억↑2억 · LTV 무주택 비규제70%/규제50%(생애최초 80/70) · 스트레스 DSR +3%p(수도권) · 주담대 시 6개월 내 실거주'},
