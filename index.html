@@ -1208,7 +1208,7 @@ function moneyHTML(){
     ${price<=0?`<div class="note" style="border-color:var(--warn)">⏳ <b>분양가 미확보</b> — ${CFG._scraped?'청약홈 실시간 수집분이라 아직 분양가가 안 들어왔습니다(API 동기화 후 타입별 자동 반영).':'이 공고는 타입별 분양가가 아직 수집되지 않았습니다(API 미동기화 또는 무순위/오피스텔 등).'}
       ${(CFG.types&&CFG.types.length)?`<div class="small" style="margin-top:5px">확인된 타입: <b>${CFG.types.map(t=>t.name.replace(/^0+/,'')).join(' · ')}</b></div>`:''}
       <div class="small" style="margin-top:5px;color:var(--accent)">👉 <b>자금 가정 → 분양가(만원)</b> 칸에 숫자를 넣으면 취득세·대출·전세 필요현금까지 즉시 계산됩니다.</div></div>`:''}
-    ${price>0?'<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 대표 '+(priceType||'타입')+' 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>':''}
+    ${price>0?`<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 타입 <select onchange="var ft=document.getElementById('f_type'); if(ft){ft.value=this.value;} analyze(false);" style="font-size:13px;padding:5px 8px;width:auto;display:inline-block;font-weight:600">${(CFG.types||[]).filter(t=>Number(t.price)>0).map(t=>`<option value="${t.name}"${(FIN.type===t.name||(!FIN.type&&priceType.indexOf(t.name)===0))?' selected':''}>${t.name.replace(/^0+/,'')} (${(+t.area).toFixed(0)}㎡) ${eokStr(t.price)}</option>`).join('')}</select> 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>`:''}
     <div${price>0?'':' style="display:none"'}>
     <div class="res-block"><h3>취득 원가</h3>
       <div class="kv"><span>분양가 ${priceType?`<span class="muted small">${priceType}</span>`:''}</span><span class="r">${won(price)}만 <span class="muted small">(${eokStr(price)})</span></span></div>
@@ -1345,8 +1345,8 @@ $('analyzeBtn').onclick=()=>analyze(true);
     if($('resultArea')&&$('resultArea').dataset.ready) analyze(false);
   });
 });
-// 시·도 변경 → 시·군구 드롭다운 갱신
-if($('m_sido')) $('m_sido').addEventListener('change', ()=>populateGugun());
+// 시·도 변경 → 시·군구 드롭다운 + 공고 목록(내 지역 필터) 갱신
+if($('m_sido')) $('m_sido').addEventListener('change', ()=>{ populateGugun(); renderPresetOptions($('presetSearch')?$('presetSearch').value:''); });
 $('saveMeBtn').onclick=()=>{collectMe();save('cy_me',ME);toast('✓ 저장됨 — 입력은 자동 저장됩니다');};
 $('saveCfgBtn').onclick=()=>{collectConfig();save('cy_config',CFG);$('cfgName').textContent=CFG.name;toast('공고 저장됨');};
 $('addTypeBtn').onclick=()=>{collectConfig();CFG.types.push({name:'새타입',area:59,htype:'민영',deposit:200,total:0,gen:0,ga:0,ch:0,chMuju:0,chMix:0});renderConfig();};
@@ -1389,15 +1389,23 @@ function visibility(p){
 function renderPresetOptions(filter){
   const sel=$('presetSelect'); const auto=autoList();
   const f=(filter||'').trim().toLowerCase();
+  const mySido=($('m_sido')&&$('m_sido').value)||'';
   const hit=p=>!f || ((p.name||'')+' '+(p.region||'')+' '+(p.supplyType||'')).toLowerCase().includes(f);
-  const open=auto.map((p,i)=>({p,v:'a'+i,vis:visibility(p)}))
-    .filter(x=>x.vis && hit(x.p)).sort((a,b)=>a.vis.sort-b.vis.sort);
+  let open=auto.map((p,i)=>({p,v:'a'+i,vis:visibility(p)})).filter(x=>x.vis && hit(x.p));
+  // 검색어 없고 거주 시/도 입력돼 있으면 → 내 지역 공고만(있을 때) → 목록 간결화
+  let regionNote='';
+  if(!f && mySido){
+    const mine=open.filter(x=>(x.p.region||'').includes(mySido));
+    if(mine.length){ open=mine; regionNote=` · 📍${mySido}`; }
+  }
+  open.sort((a,b)=>{ const am=mySido&&(a.p.region||'').includes(mySido)?0:1, bm=mySido&&(b.p.region||'').includes(mySido)?0:1; return am-bm || a.vis.sort-b.vis.sort; });
   const typeTag=st=>({'민영':'🏢아파트','공공':'🏛아파트(공공)','신혼희망타운':'💞신혼희망','오피스텔':'🏬오피스텔','무순위':'♻️무순위','임의공급':'🎲임의공급'}[st]||'🏢');
   const opt=x=>{const end=(x.p._source.접수종료||'').slice(5).replace('-','/');
     const pending = (x.p._scraped || !(x.p.types&&x.p.types.length)) ? ' · ⏳상세 업데이트예정' : '';
     return `<option value="${x.v}">${typeTag(x.p.supplyType)} | ${x.vis.tag} | ${x.p.name} · ${x.p.region} (~${end})${pending}</option>`;};
   let html='<option value="default">— 직접 입력 (빈 양식) —</option>';
-  html += `<optgroup label="🟢 지금 넣을 수 있는 공고 ${open.length}개 (마감 임박순)">` +
+  if(regionNote) html+='<option value="" disabled>📍 내 지역 공고만 표시 중 — 다른 지역은 위 검색창에 지역명 입력</option>';
+  html += `<optgroup label="🟢 지금 넣을 수 있는 공고 ${open.length}개${regionNote} (마감 임박순)">` +
     (open.length ? open.map(opt).join('') : '<option value="">조건에 맞는 진행중 공고 없음</option>') + '</optgroup>';
   sel.innerHTML = html;
 }
@@ -1477,7 +1485,7 @@ const FIELD_TIPS={
   m_houses:"공공분양은 나뿐 아니라 세대구성원(배우자·직계존비속·동거인) 전원이 무주택이어야 합니다. 세대 전체 기준으로 입력하세요.",
   m_income:"세대구성원(본인·배우자·직계존비속 등 가족) 전원의 세전 월소득 합계. 가족관계 없는 동거인은 합산하지 않습니다(각자 본인 세대 기준).",
   m_age:"만 나이. 무주택기간 가점이 만 30세부터 계산되므로 정확히 넣으면 가점이 정확해집니다.",
-  m_nohomeYears:"무주택으로 지낸 기간. 가점은 만 30세부터(30세 전 혼인 시 혼인신고일부터) 계산되고, 그 전 기간은 0점.",
+  m_nohomeYears:"무주택으로 지낸 기간. 가점은 만30세(30세 전 혼인 시 혼인일)부터 계산. ▸과거 집을 팔았으면 처분일부터 무주택기간 다시 시작 ▸분양권·입주권은 주택 수에 포함(2018.12.11 이후 취득) ▸전용 60㎡↓·공시가 저가 1채는 일부 특공에서 무주택 간주.",
   m_dependents:"등본상 함께 사는 부양가족 수(본인 제외). 민영 가점 최대 35점(가장 큰 비중).",
   m_acctMonths:"청약통장 가입 후 지난 개월. 1순위 자격 + 민영 가점(최대 17점). 오래될수록 유리.",
   m_payCount:"공공분양 전용. 매월 1회씩 인정(한 달에 여러 번 넣어도 1회). 전용 40㎡ 이하 당락을 가릅니다.",
