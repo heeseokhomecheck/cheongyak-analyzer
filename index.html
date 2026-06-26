@@ -222,8 +222,8 @@
             <select id="f_repay"><option value="원리금균등">원리금균등(기본)</option><option value="원금균등">원금균등(한도↓)</option><option value="체증식">체증식(초기부담↓)</option></select></div>
           <div class="field"><label>전세가율 (%) <span class="muted small">비우면 55%</span></label><input id="f_jeonseRate" type="number" placeholder="55"></div>
           <div class="field"><label>전세보증금 직접 (만원)</label><input id="f_jeonse" type="number" placeholder="비우면 자동"></div>
-          <div class="field"><label>단지 거주의무</label>
-            <select id="f_duty"><option value="0">없음(전세 가능)</option><option value="1">있음(전세 불가)</option></select></div>
+          <div class="field"><label>분양가상한제 단지? <span class="muted small">민영 분상제(강남4구·둔촌 등) · 공공/신희타는 자동</span></label>
+            <select id="f_duty"><option value="0">아니오 / 모름</option><option value="1">예 (분상제 — 첫 전세만, 3년내 거주)</option></select></div>
           <div class="field"><label>취득세 직접 (만원)</label><input id="f_taxOverride" type="number" placeholder="비우면 자동"></div>
         </div>
       </div>
@@ -1200,9 +1200,12 @@ function moneyHTML(){
   const jeonseRate=Number(FIN.jeonseRate)||55;
   const jeonse=Number(FIN.jeonse||0) || Math.round(price*jeonseRate/100);
   const jeonseLoan=Math.round(jeonse*0.8); // 세입자 전세자금대출 통상 보증금의 ~80%
-  // 거주의무 → 전세 불가: 신혼희망타운·공공분양은 실거주의무(최대 5년) 자동 적용 + 분상제 단지는 토글
-  const dutyAuto = CFG.supplyType==='신혼희망타운' || CFG.supplyType==='공공';
-  const jeonseBlocked = Number(FIN.duty)===1 || dutyAuto;
+  // 거주의무 — 법별로 분리:
+  //  · 공공/신희타(공공주택특별법): 거주의무(수도권 3년) → 전세 원천 불가(직접 거주, 위반 시 환수)
+  //  · 민영 분상제(주택법): 2024 개정 3년 유예 → 입주 후 3년 내 거주 시작, 첫 전세 1회는 가능
+  const dutyPublic = CFG.supplyType==='신혼희망타운' || CFG.supplyType==='공공';  // 전세 불가
+  const sangsanje  = Number(FIN.duty)===1;                                       // 민영 분상제(유예 적용)
+  const jeonseBlocked = dutyPublic;                                              // 공공/신희타만 전세 불가
   const cashGap=totalCost-jeonse;
   const myCash=Number(FIN.cash||0);
 
@@ -1263,7 +1266,7 @@ function moneyHTML(){
     </div>
 
     <div class="res-block" style="border-color:var(--gold)"><h3>② 전세 끼고 (당첨 후 바로 실거주 X)</h3>
-      ${jeonseBlocked?`<div class="note" style="margin:0">⛔ <b>전세 끼고(임대) 불가</b> — ${dutyAuto?'신혼희망타운·공공분양은 <b>실거주 의무</b>(최초 입주가능일부터 최대 5년)가 있어 당첨자가 직접 거주해야 합니다':'이 단지는 거주의무(분양가상한제)가 있어 실입주만 가능합니다'}.</div>`
+      ${jeonseBlocked?`<div class="note" style="margin:0">⛔ <b>전세 끼고(임대) 불가</b> — ${dutyPublic?'신혼희망타운·공공분양은 <b>실거주 의무</b>(최초 입주가능일부터 최대 5년)가 있어 당첨자가 직접 거주해야 합니다':'이 단지는 거주의무(분양가상한제)가 있어 실입주만 가능합니다'}.</div>`
         :`<div class="kv"><span>예상 전세보증금 <span class="muted small">분양가×${jeonseRate}% (추정)</span></span><span class="r"><b>${won(jeonse)}만</b> (${eokStr(jeonse)})</span></div>
           <div class="kv"><span class="muted small">└ 세입자 전세대출 한도(수도권 보증금 80%)</span><span class="r muted small">약 ${eokStr(jeonseLoan)} → 세입자 현금 ${eokStr(jeonse-jeonseLoan)}</span></div>
           <div class="kv"><span>내 필요현금 <span class="muted small">총원가 ${eokStr(totalCost)} − 전세 ${eokStr(jeonse)}</span></span><span class="r big" style="color:var(--gold)">${won(cashGap)}만 (${eokStr(cashGap)})</span></div>
@@ -1274,12 +1277,13 @@ function moneyHTML(){
 
     <div class="res-block" style="border-color:var(--accent)"><h3>🏠 실거주 의무 · 전세 끼고 가능 여부</h3>
       <div class="kv"><span>6.27 전입의무 <span class="muted small">${sudo?'수도권 적용':'비수도권'}</span></span><span class="r">${sudo?'<span class="pill warn">주담대 받으면 6개월 내 전입</span>':'<span class="pill ok">해당 없음</span>'}</span></div>
-      <div class="kv"><span>실거주 의무</span><span class="r">${dutyAuto?'<span class="pill bad">있음(최대 5년) → 전세 불가</span> <span class="muted small">신희타·공공분양</span>':jeonseBlocked?'<span class="pill bad">있음 → 전세 불가</span>':'<span class="muted small">분상제 단지만(강남4구·용산 등)·공고 확인</span>'}</span></div>
+      <div class="kv"><span>실거주 의무</span><span class="r">${dutyPublic?'<span class="pill bad">있음(수도권 3년) → 전세 불가</span> <span class="muted small">공공주택특별법</span>':sangsanje?'<span class="pill warn">분상제 — 첫 전세 1회 가능(3년 유예)</span>':'<span class="muted small">분상제 단지만(강남4구·용산 등)·공고 확인</span>'}</span></div>
       <div class="kv"><span>전매제한 <span class="muted small">분상제·규제지역</span></span><span class="r muted small">${sudo?'수도권 약 3년 (그 기간 매도 불가, 전세는 별개)':'수도권 외 약 1년'}</span></div>
       ${jeonseBlocked
-        ? `<div class="note" style="margin:10px 0 0">⛔ <b>전세 끼고(임대) 불가</b> — ${dutyAuto?'신혼희망타운·공공분양은 실거주 의무로 직접 거주해야 합니다':'실거주의무 단지라 직접 거주해야 합니다'}.</div>`
+        ? `<div class="note" style="margin:10px 0 0">⛔ <b>전세 끼고(임대) 불가</b> — 신혼희망타운·공공분양은 <b>거주의무(수도권 3년)</b>로 직접 거주해야 합니다 (공공주택특별법, 위반 시 시세차익 환수·당첨취소).</div>`
         : `<div style="background:#EAF2FE;border:1px solid #C6DEFB;border-radius:12px;padding:13px;margin-top:10px">
             <div style="font-weight:700;color:var(--accent2)">💡 전세 끼고 매입 가능 — 단, <b>주담대 없이</b></div>
+            ${sangsanje?`<div class="small" style="color:var(--warn);margin-top:4px">⚠️ 이 단지는 <b>분양가상한제</b> — 2024 개정으로 <b>첫 전세 1회는 가능</b>(3년 유예)하지만, <b>입주 후 3년 내 직접 실거주를 시작</b>해야 해요(영구 전세 아님).</div>`:''}
             <div class="small" style="margin-top:4px">${sudo?'수도권은 <b>주담대를 받는 순간 6개월 전입의무</b>가 생겨 전세를 못 놓습니다. 그래서 <b>대출 없이 현금 + 전세보증금</b>으로만 잔금을 치러야 해요.':'전세보증금으로 잔금을 충당하면 됩니다.'}</div>
             <div class="kv" style="margin-top:8px"><span>전세 끼고 필요현금 <span class="muted small">원가 ${eokStr(totalCost)} − 전세 ${eokStr(jeonse)}</span></span><span class="r big" style="color:var(--accent)">${eokStr(cashGap)}</span></div>
             ${myCash>0?`<div class="kv"><span>내 보유현금 ${eokStr(myCash)}</span><span class="r">${myCash>=cashGap?`<span class="pill ok">가능</span> 여유 ${eokStr(myCash-cashGap)}`:`<span class="pill bad">부족 ${eokStr(cashGap-myCash)}</span>`}</span></div>`:`<div class="small muted" style="margin-top:4px">💰 내 보유현금을 입력하면 전세 끼고 매입 가능 여부를 판정합니다.</div>`}
