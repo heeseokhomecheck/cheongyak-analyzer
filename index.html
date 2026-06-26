@@ -1168,8 +1168,9 @@ function moneyHTML(){
   const ltv = _manualLtv!=null ? _manualLtv : _lf.ltv;
   const ltvNote = _manualLtv!=null ? '직접입력 LTV' : `${_lf.why} (${reg?'규제':'비규제'} ${ltv}%)`;
   const ltvLimit=price*ltv/100;
-  const cap = capFor(price, sudo);
-  const capLabel = cap===Infinity?'' : cap>=60000?'6억':cap>=40000?'4억':'2억';
+  const userCap = Number(FIN.loancap)>0 ? Number(FIN.loancap) : null;   // 자금가정에 직접 입력 시 우선
+  const cap = userCap!=null ? userCap : capFor(price, sudo);
+  const capLabel = cap===Infinity?'' : userCap!=null?'직접입력' : cap>=60000?'6억':cap>=40000?'4억':'2억';
   const stressPP = (sudo||reg) ? POLICY_LOAN.스트레스_수도권 : POLICY_LOAN.스트레스_지방;
   const repay=FIN.repay||'원리금균등';
   const dsrLim=income>0?dsrLimit(income,Number(FIN.dsr||40),Number(FIN.rate||4),Number(FIN.term||30),repay,stressPP):Infinity;
