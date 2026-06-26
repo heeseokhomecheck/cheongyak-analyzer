@@ -1,0 +1,40 @@
+name: 정책 감시 (매일)
+
+on:
+  schedule:
+    - cron: '0 0 * * *'      # 매일 00:00 UTC (09:00 KST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 감시 이력(seen) 복원
+        uses: actions/cache@v4
+        with:
+          path: api_공고
+          key: policy-seen-${{ github.run_id }}
+          restore-keys: policy-seen-
+
+      - name: 부동산/대출 정책 뉴스 감시
+        run: python fetch_policy_watch.py
+
+      - name: 새 정책 감지 시 GitHub 이슈로 알림
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -s policy_alert.md ]; then
+            gh issue create --title "⚠️ 새 부동산/대출 정책 뉴스 감지 ($(date -u +%F))" --body-file policy_alert.md --label "policy" || \
+            gh issue create --title "⚠️ 새 부동산/대출 정책 뉴스 감지 ($(date -u +%F))" --body-file policy_alert.md
+          else
+            echo "새 정책뉴스 없음 — 이슈 생략"
+          fi
