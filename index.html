@@ -211,10 +211,10 @@
           <div class="field"><label>시스템에어컨 (만원)</label><input id="f_optAC" type="number"></div>
           <div class="field"><label>기타 유상옵션 (만원)</label><input id="f_optEtc" type="number"></div>
           <div class="field"><label>부대비용 (만원)</label><input id="f_etc" type="number"></div>
-          <div class="field"><label>LTV 한도 (%)</label><input id="f_ltv" type="number" value="50"></div>
+          <div class="field"><label>LTV 한도 (%) <span class="muted small">비우면 자동(규제·주택수·생애최초)</span></label><input id="f_ltv" type="number" placeholder="자동"></div>
           <div class="field"><label>생애최초 LTV 우대 <span class="muted small">내 조건과 자동연동</span></label>
             <select id="f_firstLtv"><option value="0">자동(내 조건 따름)</option><option value="1">강제 적용</option></select></div>
-          <div class="field"><label>대출 절대상한 (만원)</label><input id="f_loancap" type="number" value="60000"></div>
+          <div class="field"><label>대출 절대상한 (만원) <span class="muted small">비우면 가격별 자동</span></label><input id="f_loancap" type="number" placeholder="자동(6/4/2억)"></div>
           <div class="field"><label>DSR 한도 (%)</label><input id="f_dsr" type="number" value="40"></div>
           <div class="field"><label>금리 (연 %) <span class="muted small" id="rateHint">1금융권 평균 참고</span></label><input id="f_rate" type="number" step="0.1" value="4.0"></div>
           <div class="field"><label>만기 (년)</label><input id="f_term" type="number" value="30"></div>
@@ -367,7 +367,7 @@ function donutSVG(segs){
   segs.forEach(s=>{ const len=s.value/total*C;
     arcs+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${s.color}" stroke-width="24" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})"/>`;
     off+=len; });
-  return `<svg width="140" height="140" viewBox="0 0 140 140">${arcs}<text x="${cx}" y="${cy-3}" text-anchor="middle" fill="#e8edf7" font-size="15" font-weight="800">${won(total)}</text><text x="${cx}" y="${cy+15}" text-anchor="middle" fill="#9aa7c2" font-size="11">총 세대</text></svg>`;
+  return `<svg width="130" height="130" viewBox="0 0 140 140" style="max-width:100%">${arcs}<text x="${cx}" y="${cy-3}" text-anchor="middle" fill="#191F28" font-size="16" font-weight="800">${won(total)}</text><text x="${cx}" y="${cy+16}" text-anchor="middle" fill="#8B95A1" font-size="11">총 세대</text></svg>`;
 }
 
 /* ===== 검증된 법정 기준표 (2026 적용) — 특공별 소득% tier (우선/일반/추첨, [외벌이,맞벌이]) =====
@@ -964,11 +964,11 @@ function analyze(switchTab){
       `<div class="kv"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${s.color};margin-right:7px"></span>${s.label}</span><span class="r"><b>${won(s.value)}</b>세대 <span class="muted small">${Math.round(s.value/totalAll*100)}%</span></span></div>`).join('');
     out.push(`<div class="card"><h2>🥧 당첨 물량 — 추첨 몇 세대?</h2>
       <div style="font-size:15px;margin-bottom:10px">${headline}</div>
-      <div class="row" style="align-items:center;gap:20px">
-        <div>${donutSVG(segs)}</div>
-        <div style="flex:1;min-width:200px">${legend}</div>
+      <div class="row" style="align-items:center;gap:20px;justify-content:center">
+        <div style="flex:0 0 auto">${donutSVG(segs)}</div>
+        <div style="flex:1;min-width:min(220px,100%)">${legend}</div>
       </div>
-      ${tbl}
+      <div style="overflow-x:auto">${tbl}</div>
       ${note?`<div class="small muted" style="margin-top:8px">${note}</div>`:''}
     </div>`);
   })();
@@ -1091,27 +1091,40 @@ function firstHomeDiscount(t, priceManwon, isFirstHome, houses){
   }
   return Object.assign({}, t, {discount:0});
 }
-/* ===== 대출 정책 (2025.6.27 대책, 수도권) — 바뀌면 여기만 수정 ===== */
+/* ===== 대출 정책 (6.27 + 10.15 대책) — 바뀌면 여기만 수정 ===== */
 const POLICY_LOAN = {
-  수도권한도: 60000,     // 주담대 최대 6억(구입목적, 가격무관)
-  생애최초LTV: 70,       // 수도권·규제지역 80→70 (6.27)
-  생애최초LTV_비규제: 80, // 비규제지역은 생애최초 80% 유지
-  스트레스가산: 1.5,     // DSR 스트레스: 산정금리 +1.5%p
-  실거주의무개월: 6      // 6개월 내 전입 → 수도권은 전세 끼고 분양 불가
+  // 수도권·규제지역 주택가격별 주담대 한도(만원): 15억↓ 6억 / 15~25억 4억 / 25억↑ 2억
+  capTiers: [[150000,60000],[250000,40000],[Infinity,20000]],
+  ltvTable: { 무주택:[70,50], 생애최초:[80,70] },  // [비규제, 규제] 실수요 LTV(%)
+  스트레스_수도권: 3.0,   // 수도권·규제 주담대 스트레스 +3%p (10.15)
+  스트레스_지방: 1.5,     // 그 외 +1.5%p
+  실거주의무개월: 6      // 주담대 시 6개월 내 전입 → 수도권 전세 끼고 분양 불가
 };
+function capFor(priceManwon, sudo){          // 가격별 한도(수도권만)
+  if(!sudo) return Infinity;
+  for(const [lim,cap] of POLICY_LOAN.capTiers) if(priceManwon<=lim) return cap;
+  return 20000;
+}
+function ltvFor(reg, houses, isFirstHome){   // 실수요 LTV + 사유
+  houses=Number(houses||0);
+  if(houses>=2) return {ltv:0, why:'다주택 — 규제지역 주택구입 주담대 불가'};
+  if(houses===1 && reg) return {ltv:0, why:'1주택 규제지역 추가구입 불가(기존주택 6개월내 처분 시 50%)'};
+  const key=isFirstHome?'생애최초':'무주택';
+  return {ltv: POLICY_LOAN.ltvTable[key][reg?1:0], why: isFirstHome?'생애최초 우대':'무주택·처분조건부 실수요'};
+}
 function isSudogwon(region){ return /서울|경기|인천/.test(region||''); }
 /* 적용 중인 부동산 규제 요약 (시행일·근거) — 새 대책 나오면 여기 갱신 */
 const POLICY_META = [
   {name:'규제지역', date:'10.15 대책', detail:'서울 전역 투기과열·조정 / 경기 12곳(과천·광명·성남·수원일부·안양동안·용인수지·의왕·하남) 조정'},
-  {name:'대출', date:'6.27 대책', detail:'수도권 주담대 6억 한도 · 스트레스 DSR(+1.5%p) · 생애최초 LTV 70% · 주담대 시 6개월 내 실거주'},
+  {name:'대출', date:'6.27+10.15', detail:'수도권 가격별 한도 15억↓6억·15~25억4억·25억↑2억 · LTV 무주택 비규제70%/규제50%(생애최초 80/70) · 스트레스 DSR +3%p(수도권) · 주담대 시 6개월 내 실거주'},
   {name:'거주의무', date:'주택법', detail:'분양가상한제 단지 2~5년 실거주(공공택지·분양가율별), 없는 단지도 있음 · 폐지 법안 국회 계류'},
   {name:'전매제한', date:'2023.4 완화', detail:'수도권 규제·공공택지 최장 3년'},
   {name:'특공 소득·자산', date:'2026 공고검증', detail:'도시근로자 월평균소득표 · 부동산 3.31억(민영 추첨)/2.155억+차4,542만(공공) · 신혼희망 총자산 3.97억'},
 ];
-function dsrLimit(monthlyIncomeManwon, dsrPct, ratePct, termYears, method){
+function dsrLimit(monthlyIncomeManwon, dsrPct, ratePct, termYears, method, stressPP){
   const annual=monthlyIncomeManwon*12;
   const cap=annual*dsrPct/100;            // 연 상환가능액(만원)
-  const r=(ratePct+POLICY_LOAN.스트레스가산)/100;  // 스트레스 가산 연이율
+  const r=(ratePct+(stressPP!=null?stressPP:1.5))/100;  // 스트레스 가산 연이율
   const i=r/12, n=termYears*12;
   if(i<=0) return cap*termYears;
   if(method==='원금균등'){
@@ -1144,22 +1157,22 @@ function moneyHTML(){
   tax=firstHomeDiscount(tax, taxBase, isFirstHome, houses);
   const totalCost=price+opt+tax.tax+etc;
 
-  // 대출 (6.27 대책 반영)
+  // 대출 (6.27 + 10.15 대책) — 가격별 한도·규제별 LTV·스트레스 3%p
   const sudo=isSudogwon(CFG.region);
-  let ltv=Number(FIN.ltv||0);
-  // 생애최초 우대 LTV: 내 조건(생애최초=예)이면 자동 적용 + 자금 토글로도 적용. 수도권/규제 70%, 비규제 80%
+  const reg = !!CFG.regulated && !/비규제|^—?$/.test(CFG.regulated);
   const isFirst = Number(FIN.firstLtv)===1 || Number((ME&&ME.firstever))===1;
-  let ltvNote='';
-  if(isFirst){
-    const fLtv = sudo ? POLICY_LOAN.생애최초LTV : POLICY_LOAN.생애최초LTV_비규제;
-    if(fLtv>ltv){ ltv=fLtv; ltvNote=`생애최초 우대 LTV <b>${fLtv}%</b> 자동적용${sudo?' (수도권·6억 한도)':' (비규제)'}`; }
-  }
+  const _lf = ltvFor(reg, houses, isFirst);
+  const _manualLtv = Number(FIN.ltv)>0 ? Number(FIN.ltv) : null;   // 자금가정에 직접 입력 시 우선
+  const ltv = _manualLtv!=null ? _manualLtv : _lf.ltv;
+  const ltvNote = _manualLtv!=null ? '직접입력 LTV' : `${_lf.why} (${reg?'규제':'비규제'} ${ltv}%)`;
   const ltvLimit=price*ltv/100;
-  const cap = sudo ? POLICY_LOAN.수도권한도 : (Number(FIN.loancap||0)||Infinity); // 수도권 6억 강제
+  const cap = capFor(price, sudo);
+  const capLabel = cap===Infinity?'' : cap>=60000?'6억':cap>=40000?'4억':'2억';
+  const stressPP = (sudo||reg) ? POLICY_LOAN.스트레스_수도권 : POLICY_LOAN.스트레스_지방;
   const repay=FIN.repay||'원리금균등';
-  const dsrLim=income>0?dsrLimit(income,Number(FIN.dsr||40),Number(FIN.rate||4),Number(FIN.term||30),repay):Infinity;
+  const dsrLim=income>0?dsrLimit(income,Number(FIN.dsr||40),Number(FIN.rate||4),Number(FIN.term||30),repay,stressPP):Infinity;
   const loan=Math.max(0,Math.min(ltvLimit,cap,dsrLim));
-  const loanWhich = (loan===cap&&sudo)?'6.27 수도권 6억 한도':loan===ltvLimit?`LTV ${ltv}%`:loan===cap?'대출 절대상한':'DSR(스트레스) 한도';
+  const loanWhich = loan===0?'대출 불가(규제)':(loan===cap&&cap!==Infinity)?`수도권 가격별 한도 ${capLabel}`:loan===ltvLimit?`LTV ${ltv}%`:'DSR(스트레스) 한도';
 
   const cashLive=totalCost-loan;
   const jeonseRate=Number(FIN.jeonseRate)||55;
@@ -1173,7 +1186,7 @@ function moneyHTML(){
   const typeRows=(CFG.types||[]).filter(t=>Number(t.price)>0).sort((a,b)=>a.price-b.price).map(t=>{
     const pp=Number(t.price), o85=(+t.area>85);
     const tx=firstHomeDiscount(acqTax(pp+opt,o85,houses,CFG.regulated,0), pp+opt, isFirstHome, houses), tot=pp+opt+tx.tax+etc;
-    const ln=Math.max(0,Math.min(pp*ltv/100,cap,dsrLim)), cl=tot-ln;
+    const ln=Math.max(0,Math.min(pp*ltv/100,capFor(pp,sudo),dsrLim)), cl=tot-ln;
     const jn=Math.round(pp*jeonseRate/100), cg=tot-jn;
     const sel=(FIN.type&&FIN.type===t.name)||(!FIN.type&&priceType.indexOf(t.name)===0);
     const cashCmp=v=>myCash>0?(myCash>=v?' ✅':' ❌'):'';
@@ -1205,17 +1218,16 @@ function moneyHTML(){
     </div>
 
     <div class="res-block"><h3>대출 가능액 <span class="tag">6.27 대책 반영</span></h3>
-      <div class="kv"><span>LTV ${ltv}%${isFirst?' <span class="pill ok">생애최초</span>':''} × 분양가</span><span class="r">${won(ltvLimit)}만</span></div>
-      ${ltvNote?`<div class="small" style="color:var(--ok);text-align:right">✅ ${ltvNote}</div>`:''}
-      ${(isFirst&&!ltvNote)?`<div class="small muted" style="text-align:right">생애최초 우대 LTV가 입력 LTV(${Number(FIN.ltv||0)}%)보다 낮아 미적용</div>`:''}
-      ${sudo?`<div class="kv"><span style="color:var(--bad)"><b>수도권 절대한도</b></span><span class="r" style="color:var(--bad)"><b>${won(cap)}만 (6억)</b></span></div>`:cap!==Infinity?`<div class="kv"><span>절대상한</span><span class="r">${won(cap)}만</span></div>`:''}
-      <div class="kv"><span>DSR ${FIN.dsr||40}% <span class="muted small">스트레스+${POLICY_LOAN.스트레스가산}%p·${FIN.rate||4}%·${FIN.term||30}년·${repay}</span></span><span class="r">${dsrLim===Infinity?'소득입력 필요':won(dsrLim)+'만'}</span></div>
+      <div class="kv"><span>LTV ${ltv}%${isFirst?' <span class="pill ok">생애최초</span>':''} × 분양가</span><span class="r">${ltv===0?'<span class="pill bad">대출 불가</span>':won(ltvLimit)+'만'}</span></div>
+      <div class="small ${ltv===0?'':'muted'}" style="text-align:right${ltv===0?';color:var(--bad)':''}">${ltv===0?'⛔ ':'↳ '}${ltvNote}</div>
+      ${cap!==Infinity?`<div class="kv"><span style="color:var(--bad)"><b>가격별 한도</b> <span class="muted small">${eokStr(price)} → ${capLabel}</span></span><span class="r" style="color:var(--bad)"><b>${won(cap)}만 (${capLabel})</b></span></div>`:''}
+      <div class="kv"><span>DSR ${FIN.dsr||40}% <span class="muted small">스트레스+${stressPP}%p·${FIN.rate||4}%·${FIN.term||30}년·${repay}</span></span><span class="r">${dsrLim===Infinity?'소득입력 필요':won(dsrLim)+'만'}</span></div>
       <div class="kv"><span><b>실제 주담대</b></span><span class="r big">${won(loan)}만 <span class="muted small">← ${loanWhich}</span></span></div>
       ${loan>0?`<div class="kv"><span>📅 월 상환액 <span class="muted small">원리금균등·${FIN.rate||4}%·${FIN.term||30}년</span></span><span class="r"><b style="color:var(--accent2)">${won(monthlyPayment(loan,FIN.rate||4,FIN.term||30))}만원/월</b></span></div>
       ${CFG.supplyType==='신혼희망타운'?`<div class="small muted" style="text-align:right">💡 신혼희망타운은 <b>전용 수익공유형 모기지</b>(연 1%대 고정, 집값 일부 공유) 선택 시 월 상환액이 크게 줄어요. 위는 일반 주담대 기준이라, 금리 칸을 전용대출 금리로 바꿔보세요.</div>`:''}`:''}
       ${repay==='원금균등'?`<div class="small muted" style="text-align:right">원금균등은 초기 상환액이 커 DSR 한도가 가장 작게 잡힙니다.</div>`:''}
       ${repay==='체증식'?`<div class="small" style="color:var(--warn);text-align:right">⚠️ 체증식은 초기 상환부담이 낮지만, 현행 DSR 규제상 한도 이점이 제한돼 <b>균등상환 기준으로 보수 산정</b>했습니다(실제 한도는 은행 확인).</div>`:''}
-      ${(sudo&&loan===cap&&ltvLimit>cap)?`<div class="small" style="color:var(--bad);margin-top:4px">⚠️ LTV로는 ${won(ltvLimit)}만 되지만, 6.27 대책으로 수도권은 <b>최대 6억까지만</b> 나옵니다.</div>`:''}
+      ${(loan===cap&&cap!==Infinity&&ltvLimit>cap)?`<div class="small" style="color:var(--bad);margin-top:4px">⚠️ LTV로는 ${won(ltvLimit)}만 되지만, 6.27 대책으로 <b>${eokStr(price)} 주택은 ${capLabel}까지만</b> 나옵니다.</div>`:''}
       <div class="small muted" style="margin-top:6px"><b>대출 총량(1주택):</b> 주담대 + 신용대출이 <b>DSR 40%에 합산</b>됩니다 — 주담대를 최대로 받으면 신용 여력은 거의 없어요(소득 따라 ~1억 내외). 전세대출은 ②번(전세 끼고)에서 <b>세입자</b>가 받는 것(보증금 80%)입니다.</div>
     </div>
 
@@ -1227,11 +1239,12 @@ function moneyHTML(){
 
     <div class="res-block" style="border-color:var(--gold)"><h3>② 전세 끼고 (당첨 후 바로 실거주 X)</h3>
       ${jeonseBlocked?`<div class="note" style="margin:0">⛔ 이 단지는 <b>거주의무(분양가상한제)</b>가 있어 전세 임대가 불가합니다. 실입주만 가능해요.</div>`
-        :`<div class="kv"><span>예상 전세보증금 <span class="muted small">분양가×${jeonseRate}%</span></span><span class="r"><b>${won(jeonse)}만</b> (${eokStr(jeonse)})</span></div>
-          <div class="kv"><span class="muted small">└ 세입자 전세대출(보증금 80%)</span><span class="r muted small">약 ${eokStr(jeonseLoan)}까지 → 세입자 현금 ${eokStr(jeonse-jeonseLoan)}</span></div>
+        :`<div class="kv"><span>예상 전세보증금 <span class="muted small">분양가×${jeonseRate}% (추정)</span></span><span class="r"><b>${won(jeonse)}만</b> (${eokStr(jeonse)})</span></div>
+          <div class="kv"><span class="muted small">└ 세입자 전세대출 한도(수도권 보증금 80%)</span><span class="r muted small">약 ${eokStr(jeonseLoan)} → 세입자 현금 ${eokStr(jeonse-jeonseLoan)}</span></div>
           <div class="kv"><span>내 필요현금 <span class="muted small">총원가 ${eokStr(totalCost)} − 전세 ${eokStr(jeonse)}</span></span><span class="r big" style="color:var(--gold)">${won(cashGap)}만 (${eokStr(cashGap)})</span></div>
           ${myCash>0?`<div class="kv"><span>내 보유현금 ${eokStr(myCash)}</span><span class="r">${myCash>=cashGap?`<span class="pill ok">가능</span> 여유 ${eokStr(myCash-cashGap)}`:'<span class="pill bad">부족 '+eokStr(cashGap-myCash)+'</span>'}</span></div>`:''}
-          <div class="small muted" style="margin-top:6px">주담대 안 받으니 6.27 6개월 실거주 의무 <b>안 걸림</b>. 보증금으로 잔금 충당. 단, 분양가상한제 거주의무는 공고 확인.</div>`}
+          <div class="note" style="margin:8px 0 0"><b>⚠️ 전세보증금은 추정치예요</b> — 실제 전세 시세는 <b>단지·시기별로 크게 다릅니다</b>. 입주장 전세는 더 낮을 수 있어요. <b>전세가율 칸</b>에 실제 시세(부동산·네이버부동산 확인)를 넣으면 정확해집니다.</div>
+          <div class="small muted" style="margin-top:6px">• 세입자 한도: 수도권 보증금 <b>80%</b>까지 보증(6.27) — 단 세입자의 소득·신용에 따라 달라지고, <b>1주택 세입자는 전세대출이 DSR에 반영</b>돼 한도가 줄 수 있어요.<br>• 주담대 안 받으니 6.27 6개월 실거주 의무 <b>안 걸림</b>. 단 분양가상한제 거주의무는 공고 확인.</div>`}
     </div>
 
     <div class="res-block" style="border-color:var(--accent)"><h3>🏠 실거주 의무 · 갭투자 가능성</h3>
