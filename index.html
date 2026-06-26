@@ -126,7 +126,7 @@
       <div class="sub">아는 만큼만 채워도 됩니다. 빈칸은 해당 항목 판정에서 제외됩니다.</div>
       <!-- ① 기본 (항상 표시) -->
       <div class="fgroup static">
-        <div class="ghead">📋 기본 정보 <span class="tagx">누구나</span></div>
+        <div class="ghead">📋 기본 정보 <span class="tagx" style="background:#FFE8D6;color:#C2410C">필수·권장</span></div>
         <div class="gbody"><div class="grid">
           <div class="field"><label>거주 시·도 <span class="muted small">실제 사는 곳</span></label>
             <select id="m_sido">
@@ -149,7 +149,7 @@
 
       <!-- ② 가점 (민영) -->
       <details class="fgroup">
-        <summary>🎯 가점 항목 <span class="tagx">민영 가점제</span></summary>
+        <summary>🎯 가점 항목 <span class="tagx">민영 가점제</span> <span class="muted small" style="font-weight:400">선택·해당 시</span></summary>
         <div class="gbody"><div class="grid">
           <div class="field"><label>무주택 기간 (년) <span class="muted small">만30세·혼인 기산</span></label><input id="m_nohomeYears" type="number" min="0" step="0.5" placeholder="예: 5"></div>
           <div class="field"><label>부양가족 수 (본인 제외, 명)</label><input id="m_dependents" type="number" min="0" placeholder="예: 2"></div>
@@ -160,7 +160,7 @@
 
       <!-- ③ 특별공급 자격 -->
       <details class="fgroup">
-        <summary>👶 특별공급 자격 <span class="tagx">신혼·신생아·생애최초</span></summary>
+        <summary>👶 특별공급 자격 <span class="tagx">신혼·신생아·생애최초</span> <span class="muted small" style="font-weight:400">선택·해당 시</span></summary>
         <div class="gbody"><div class="grid">
           <div class="field"><label>혼인상태</label>
             <select id="m_marital"><option value="single">미혼</option><option value="married">기혼(혼인신고O)</option><option value="couple">사실혼/동거(신고X)</option></select></div>
@@ -175,7 +175,7 @@
 
       <!-- ④ 소득·자산 · 기타 -->
       <details class="fgroup">
-        <summary>💴 소득·자산 · 기타 <span class="tagx">특공 소득컷·공공</span></summary>
+        <summary>💴 소득·자산 · 기타 <span class="tagx">특공 소득컷·공공</span> <span class="muted small" style="font-weight:400">선택·해당 시</span></summary>
         <div class="gbody"><div class="grid">
           <div class="field"><label>가구원 수 (본인 포함)</label><input id="m_hhSize" type="number" min="1" placeholder="예: 3"></div>
           <div class="field"><label>맞벌이 여부</label>
@@ -636,6 +636,18 @@ function analyze(switchTab){
   collectMe();
   const m=ME, c=CFG, out=[];
 
+  // ===== 입력 안내(검증) — 결과가 비거나 부정확하면 무엇을 넣어야 하는지 =====
+  if(!c.name || /선택/.test(c.name)){
+    out.push('<div class="note" style="border-color:var(--warn)">📋 먼저 위 <b>🔄 공고 선택·변경</b>에서 분석할 공고를 골라주세요 (목록에서 고르면 바로 적용됩니다).</div>');
+  } else {
+    const need=[];
+    if(!m.sido) need.push('거주 시·도 — 해당지역/1순위 판정');
+    if(!Number(m.income)) need.push('가구 월평균 소득 — 소득컷 통과 여부');
+    const fp=$('f_price'), anyPrice=(c.types||[]).some(t=>Number(t.price)>0)||(fp&&Number(fp.value)>0);
+    if(!anyPrice) need.push('분양가 — 필요현금이 안 나와요. <b>자금 가정 → 분양가</b> 칸에 넣으면 즉시 계산됩니다');
+    if(need.length) out.push(`<div class="info">💡 <b>더 정확한 결과를 보려면 입력하세요</b>${need.map(x=>'<div class="small" style="margin-top:3px">• '+x+'</div>').join('')}</div>`);
+  }
+
   // 지역 — 실제 거주지(시/도+시군구) vs 공고 위치 비교
   const _rv=regionVerdict(m,c);
   const regionMsg=_rv.html, regionTier=_rv.tier;
@@ -760,9 +772,9 @@ function analyze(switchTab){
     const assetBad = reOk===false||carOk===false;
     out.push(`<div class="card"><h2>🏦 공공분양 일반공급 — 순차제 <span class="tag">국민주택</span></h2>
       <div class="sub">가점제가 아니라 <b>순차제</b>(저축총액·납입횟수)로 뽑습니다. 무주택 세대구성원 대상.</div>
-      <div class="kv"><span>전용 40㎡ 초과 (대부분)</span><span class="r">3년↑무주택 + <b>저축총액(인정액) 많은 순</b></span></div>
-      <div class="kv"><span>전용 40㎡ 이하</span><span class="r">3년↑무주택 + <b>납입횟수 많은 순</b></span></div>
+      <div class="kv"><span><b>당첨 기준</b> (1순위 내)</span><span class="r">3년↑ 무주택 중 <b>저축총액(인정금액) 많은 순</b></span></div>
       <div class="kv"><span>내 저축총액(인정금액)</span><span class="r"><b>${won(savings)}만원</b> ${savedDirect>0?'<span class="pill ok">직접입력</span>':`<span class="muted small">납입 ${pay}회×10만 추정</span>`}</span></div>
+      <div class="small muted">※ 아파트는 대부분 전용 40㎡ 초과라 <b>저축총액이 핵심</b>입니다. (40㎡ 이하 소형만 저축총액 대신 납입횟수 순 — 실제 거의 없음)</div>
       ${savedDirect<=0?`<div class="small" style="color:var(--warn);text-align:right">⚠️ 저축총액은 청약통장 앱의 <b>"인정금액"</b>을 직접 입력하세요 — 2024.11부터 월 인정한도가 <b>10만→25만</b>으로 올라 추정과 차이가 큽니다. 40㎡ 초과는 이게 <b>당락</b>이에요.</div>`:''}
       <div class="kv"><span>무주택 기간</span><span class="r">${m.nohomeYears?Number(m.nohomeYears)+'년':'미입력'} ${Number(m.nohomeYears||0)>=3?'<span class="pill ok">3년↑</span>':'<span class="pill warn">3년 권장</span>'}</span></div>
       <div class="res-block" style="margin-top:10px"><h3>소득·자산 요건 <span class="muted small">공공분양 일반공급 (면적 기준)</span></h3>
@@ -1064,6 +1076,13 @@ function acqTax(baseManwon, over85, houses, regulated, override){
   const total=rate+edu+nong;
   return {total, rateTxt:`본세 ${rate.toFixed(1)}%+교육세 ${edu.toFixed(1)}%${nong?`+농특세 ${nong.toFixed(1)}%`:''}`, tax:Math.round(baseManwon*total/100)};
 }
+/* 월 상환액(원리금균등) — 대출 P(만원)·금리·만기 → 월 납입(만원). 스트레스 아닌 실제 금리 사용 */
+function monthlyPayment(P, ratePct, years){
+  const i=Number(ratePct)/100/12, n=Number(years)*12;
+  if(!(P>0)||!(n>0)) return 0;
+  if(i<=0) return Math.round(P/n);
+  return Math.round(P*i/(1-Math.pow(1+i,-n)));
+}
 /* 생애최초 취득세 감면: 12억 이하 + 무주택 + 생애최초 → 200만원 한도 면제(소득요건 없음, 3년 실거주 의무) */
 function firstHomeDiscount(t, priceManwon, isFirstHome, houses){
   if(t.rateTxt!=='직접입력' && isFirstHome && Number(houses)<=0 && priceManwon<=120000 && t.tax>0){
@@ -1192,6 +1211,8 @@ function moneyHTML(){
       ${sudo?`<div class="kv"><span style="color:var(--bad)"><b>수도권 절대한도</b></span><span class="r" style="color:var(--bad)"><b>${won(cap)}만 (6억)</b></span></div>`:cap!==Infinity?`<div class="kv"><span>절대상한</span><span class="r">${won(cap)}만</span></div>`:''}
       <div class="kv"><span>DSR ${FIN.dsr||40}% <span class="muted small">스트레스+${POLICY_LOAN.스트레스가산}%p·${FIN.rate||4}%·${FIN.term||30}년·${repay}</span></span><span class="r">${dsrLim===Infinity?'소득입력 필요':won(dsrLim)+'만'}</span></div>
       <div class="kv"><span><b>실제 주담대</b></span><span class="r big">${won(loan)}만 <span class="muted small">← ${loanWhich}</span></span></div>
+      ${loan>0?`<div class="kv"><span>📅 월 상환액 <span class="muted small">원리금균등·${FIN.rate||4}%·${FIN.term||30}년</span></span><span class="r"><b style="color:var(--accent2)">${won(monthlyPayment(loan,FIN.rate||4,FIN.term||30))}만원/월</b></span></div>
+      ${CFG.supplyType==='신혼희망타운'?`<div class="small muted" style="text-align:right">💡 신혼희망타운은 <b>전용 수익공유형 모기지</b>(연 1%대 고정, 집값 일부 공유) 선택 시 월 상환액이 크게 줄어요. 위는 일반 주담대 기준이라, 금리 칸을 전용대출 금리로 바꿔보세요.</div>`:''}`:''}
       ${repay==='원금균등'?`<div class="small muted" style="text-align:right">원금균등은 초기 상환액이 커 DSR 한도가 가장 작게 잡힙니다.</div>`:''}
       ${repay==='체증식'?`<div class="small" style="color:var(--warn);text-align:right">⚠️ 체증식은 초기 상환부담이 낮지만, 현행 DSR 규제상 한도 이점이 제한돼 <b>균등상환 기준으로 보수 산정</b>했습니다(실제 한도는 은행 확인).</div>`:''}
       ${(sudo&&loan===cap&&ltvLimit>cap)?`<div class="small" style="color:var(--bad);margin-top:4px">⚠️ LTV로는 ${won(ltvLimit)}만 되지만, 6.27 대책으로 수도권은 <b>최대 6억까지만</b> 나옵니다.</div>`:''}
@@ -1303,11 +1324,14 @@ $('analyzeBtn').onclick=()=>analyze(true);
 [...ME_FIELDS.map(f=>'m_'+f), ...FIN_FIELDS.map(f=>'f_'+f)].forEach(id=>{
   const el=$(id); if(!el) return;
   const ev = el.tagName==='SELECT' ? 'change' : 'input';
-  el.addEventListener(ev, ()=>{ if($('resultArea')&&$('resultArea').dataset.ready) analyze(false); });
+  el.addEventListener(ev, ()=>{
+    collectMe(); collectFin(); save('cy_me',ME); save('cy_fin',FIN);   // 입력 즉시 자동 저장(새로고침해도 유지)
+    if($('resultArea')&&$('resultArea').dataset.ready) analyze(false);
+  });
 });
 // 시·도 변경 → 시·군구 드롭다운 갱신
 if($('m_sido')) $('m_sido').addEventListener('change', ()=>populateGugun());
-$('saveMeBtn').onclick=()=>{collectMe();save('cy_me',ME);toast('내 조건 저장됨');};
+$('saveMeBtn').onclick=()=>{collectMe();save('cy_me',ME);toast('✓ 저장됨 — 입력은 자동 저장됩니다');};
 $('saveCfgBtn').onclick=()=>{collectConfig();save('cy_config',CFG);$('cfgName').textContent=CFG.name;toast('공고 저장됨');};
 $('addTypeBtn').onclick=()=>{collectConfig();CFG.types.push({name:'새타입',area:59,htype:'민영',deposit:200,total:0,gen:0,ga:0,ch:0,chMuju:0,chMix:0});renderConfig();};
 $('addSpecialBtn').onclick=()=>{collectConfig();CFG.special.push({type:'새유형',apply:'공통',incSingle:100,incDual:120,qty:0,lottery:0,asset:21550,car:3708,memo:''});renderConfig();};
@@ -1316,7 +1340,7 @@ $('exportBtn').onclick=()=>{ collectConfig(); const b=new Blob([JSON.stringify(C
 $('importBtn').onclick=()=>$('importFile').click();
 $('importFile').onchange=e=>{ const file=e.target.files[0]; if(!file)return; const r=new FileReader(); r.onload=()=>{ try{ CFG=JSON.parse(r.result); migrate(CFG); save('cy_config',CFG); renderConfig(); toast('공고 불러옴'); }catch(err){ alert('JSON 파싱 실패: '+err.message); } }; r.readAsText(file); };
 
-function toast(msg){ const d=document.createElement('div'); d.textContent=msg; d.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#243150;border:1px solid #4f8cff;padding:11px 18px;border-radius:10px;z-index:99;font-size:14px'; document.body.appendChild(d); setTimeout(()=>d.remove(),1700); }
+function toast(msg){ const d=document.createElement('div'); d.textContent=msg; d.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#191F28;color:#fff;border:none;padding:11px 18px;border-radius:12px;z-index:99;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(17,24,39,.28)'; document.body.appendChild(d); setTimeout(()=>d.remove(),1700); }
 
 /* 프리셋 드롭다운 + 검색 (내장 PDF정밀 + 자동수집 API) */
 function autoList(){
