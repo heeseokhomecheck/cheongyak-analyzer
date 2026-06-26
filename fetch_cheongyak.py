@@ -356,6 +356,15 @@ def auto_update(max_new=None):
             for t in p.get("types", []):
                 ga, ch, cm, cx = split_ga_ch(t.get("area", 0), int(t.get("gen", 0) or 0), p.get("regulated"))
                 t["ga"], t["ch"], t["chMuju"], t["chMix"] = ga, ch, cm, cx
+    # 오래된(마감 120일 경과) 공고는 상태캐시에서 제거 — _master.json 무한 누적 방지
+    import datetime as _pd
+    _keepcut = (_pd.date.today() - _pd.timedelta(days=120)).isoformat()
+    _old = [k for k, p in master.items()
+            if (p.get("_source", {}).get("접수종료") or p.get("_source", {}).get("접수시작") or "9999-99-99") < _keepcut]
+    for _k in _old:
+        del master[_k]
+    if _old:
+        print(f"  캐시 정리: 120일 경과 {len(_old)}건 제거 → 이력 {len(master)}개")
     json.dump(master, open(MASTER, "w", encoding="utf-8"), ensure_ascii=False)
     # presets_auto.js 에는 '노출 대상'만(접수중·예정·막 마감) → 파일 경량화. 전체 이력은 _master.json.
     import datetime
