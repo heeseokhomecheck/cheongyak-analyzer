@@ -40,6 +40,11 @@
   select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 12 12'%3E%3Cpath fill='%238B95A1' d='M6 8L2 4h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:32px}
   .field{margin-bottom:12px}
   .fgroup .gbody{padding:18px}
+  /* 컴팩트 인라인 컨트롤바(자금표 위 월소득·대출유형·보유현금) — 큰 폼 CSS 덮어쓰기 */
+  .qbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .qbar label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--txt);margin:0;min-height:0}
+  .qbar input,.qbar select{padding:8px 10px;font-size:14px;font-weight:600;border-radius:10px;border:1.5px solid var(--line);background:#fff;width:auto}
+  .qbar select{padding-right:30px;background-position:right 10px center}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:13px;padding:13px 22px;font-size:15px;
     font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;box-shadow:0 2px 8px rgba(49,130,246,.25)}
   .btn:hover{background:var(--accent2)}
@@ -1401,10 +1406,10 @@ function moneyHTML(){
   const cmpList = LOANTYPES.map(lt=>({lt, r:loanForType(lt, price, over85, income, isFirstHome, houses, reg, sudo, repay, stressPP)}));
 
   let h=`<div class="card"><h2>💰 타입별 필요현금 — 한눈에</h2>
-    ${price>0?`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px">
-      <label style="display:flex;align-items:center;gap:4px">월소득 <input type="number" value="${income||''}" placeholder="월" onchange="var e=document.getElementById('m_income');if(e)e.value=this.value;analyze(false)" style="width:62px;padding:4px 6px">만</label>
-      <label style="display:flex;align-items:center;gap:4px">대출유형 <select onchange="var e=document.getElementById('f_loantype');if(e)e.value=this.value;analyze(false)" style="width:auto;padding:4px 6px"><option value="자동"${ltSel==='자동'?' selected':''}>자동(${isFirstHome?'생애최초':'일반'})</option>${LOANTYPES.map(x=>`<option value="${x}"${ltSel===x?' selected':''}>${LOANLABEL[x]}</option>`).join('')}</select></label>
-      <label style="display:flex;align-items:center;gap:4px">보유현금 <input type="number" value="${myCash||''}" placeholder="만원" onchange="var e=document.getElementById('f_cash');if(e)e.value=this.value;analyze(false)" style="width:72px;padding:4px 6px">만</label>
+    ${price>0?`<div class="qbar">
+      <label>월소득 <input type="number" value="${income||''}" placeholder="월" onchange="var e=document.getElementById('m_income');if(e)e.value=this.value;analyze(false)" style="width:72px">만</label>
+      <label>대출유형 <select onchange="var e=document.getElementById('f_loantype');if(e)e.value=this.value;analyze(false)"><option value="자동"${ltSel==='자동'?' selected':''}>자동(${isFirstHome?'생애최초':'일반'})</option>${LOANTYPES.map(x=>`<option value="${x}"${ltSel===x?' selected':''}>${LOANLABEL[x]}</option>`).join('')}</select></label>
+      <label>보유현금 <input type="number" value="${myCash||''}" placeholder="만원" onchange="var e=document.getElementById('f_cash');if(e)e.value=this.value;analyze(false)" style="width:88px">만</label>
     </div>`:''}
     ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>취득세</th><th>대출가능<br><span class="muted small" style="font-weight:400">${LOANLABEL[ltUse]}</span></th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th><th>③ 더<br>모을 돈</th></tr></thead><tbody>${typeRows}</tbody></table></div>
       <div class="small muted" style="margin-top:8px">필요현금 = <b>분양가 + 취득세 − 대출</b> <span class="muted small">(순수 주택가격·옵션 제외)</span>. <b>③ 더 모을 돈</b> = 실입주 필요현금 − 보유현금${myCash>0?'':' (보유현금 넣으면 부족분만 표시)'}.<br>${CFG.supplyType==='무순위'||CFG.supplyType==='임의공급'?'⏰ <b>무순위·임의는 이미 지어진 집</b> — 입주가 임박해 <b>중도금 없이 계약금+잔금</b>을 바로 치러야 해요(대출·현금 빨리 준비).':'🗓️ 일반 분양은 <b>계약금→중도금→잔금으로 2~3년 분납</b> — 그 사이 ③을 모으면 됩니다(지금 당장은 계약금 ${eokStr(downPay)}).'}</div>
@@ -1415,7 +1420,7 @@ function moneyHTML(){
     ${price<=0?`<div class="note" style="border-color:var(--warn)">⏳ <b>분양가 미확보</b> — ${CFG._scraped?'청약홈 실시간 수집분이라 아직 분양가가 안 들어왔습니다(API 동기화 후 타입별 자동 반영).':'이 공고는 타입별 분양가가 아직 수집되지 않았습니다(API 미동기화 또는 무순위/오피스텔 등).'}
       ${(CFG.types&&CFG.types.length)?`<div class="small" style="margin-top:5px">확인된 타입: <b>${CFG.types.map(t=>t.name.replace(/^0+/,'')).join(' · ')}</b></div>`:''}
       <div class="small" style="margin-top:5px;color:var(--accent)">👉 <b>자금 가정 → 분양가(만원)</b> 칸에 숫자를 넣으면 취득세·대출·전세 필요현금까지 즉시 계산됩니다.</div></div>`:''}
-    ${price>0?`<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 타입 <select onchange="var ft=document.getElementById('f_type'); if(ft){ft.value=this.value;} analyze(false);" style="font-size:13px;padding:5px 8px;width:auto;display:inline-block;font-weight:600">${(CFG.types||[]).filter(t=>Number(t.price)>0).map(t=>`<option value="${t.name}"${(FIN.type===t.name||(!FIN.type&&priceType.indexOf(t.name)===0))?' selected':''}>${t.name.replace(/^0+/,'')} (${(+t.area).toFixed(0)}㎡) ${eokStr(t.price)}</option>`).join('')}</select> 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>`:''}
+    ${price>0?`<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 타입 <select onchange="var ft=document.getElementById('f_type'); if(ft){ft.value=this.value;} analyze(false);" style="font-size:13px;padding:6px 30px 6px 11px;width:auto;display:inline-block;font-weight:600;background-position:right 11px center">${(CFG.types||[]).filter(t=>Number(t.price)>0).map(t=>`<option value="${t.name}"${(FIN.type===t.name||(!FIN.type&&priceType.indexOf(t.name)===0))?' selected':''}>${t.name.replace(/^0+/,'')} (${(+t.area).toFixed(0)}㎡) ${eokStr(t.price)}</option>`).join('')}</select> 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>`:''}
     <div${price>0?'':' style="display:none"'}>
     <details style="margin-bottom:8px"><summary style="cursor:pointer;font-weight:700;color:var(--accent2);padding:10px 12px;background:var(--chip);border-radius:10px;user-select:none">🔎 한 타입 계산 근거 자세히 — 취득세·중도금·대출·정책대출·전세 (눌러서 펼치기)</summary>
     <div style="margin-top:10px">
