@@ -32,13 +32,14 @@
   .card h2{margin:0 0 5px;font-size:17px;font-weight:700;letter-spacing:-.3px}
   .card .sub{color:var(--dim);font-size:13px;margin-bottom:16px;font-weight:500}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
-  label{display:block;font-size:13px;color:var(--txt);font-weight:600;margin-bottom:6px;min-height:32px;line-height:1.4}
-  input,select{width:100%;background:var(--panel2);border:1px solid transparent;color:var(--txt);
-    border-radius:12px;padding:12px 13px;font-size:15px;font-family:inherit;font-weight:500;transition:.15s}
+  label{display:block;font-size:14px;color:var(--txt);font-weight:600;margin-bottom:7px;min-height:34px;line-height:1.45}
+  input,select{width:100%;background:#fff;border:1.5px solid var(--line);color:var(--txt);
+    border-radius:12px;padding:14px 14px;font-size:16px;font-family:inherit;font-weight:500;transition:.15s}
   input::placeholder{color:#B6BEC7;font-weight:400}
   input:focus,select:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px rgba(49,130,246,.13)}
-  select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238B95A1' d='M6 8L2 4h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:30px}
-  .field{margin-bottom:2px}
+  select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 12 12'%3E%3Cpath fill='%238B95A1' d='M6 8L2 4h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:32px}
+  .field{margin-bottom:12px}
+  .fgroup .gbody{padding:18px}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:13px;padding:13px 22px;font-size:15px;
     font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;box-shadow:0 2px 8px rgba(49,130,246,.25)}
   .btn:hover{background:var(--accent2)}
@@ -1049,6 +1050,32 @@ function analyze(switchTab){
       <div class="small muted" style="margin-top:8px">${isMin?'민영: <b>우선</b>(소득 100/120%↓) → <b>일반</b>(140/160%↓) → <b>🎲추첨</b>(소득초과·부동산 3.31억↓) 순으로 <b>자동 경쟁</b> — 앞 단계 떨어져도 다음 단계로 넘어갑니다.':'공공: <b>우선 70%</b>(소득 100%↓ · 신혼=배점, 생초=추첨) → <b>잔여 30%</b>(소득 130%↓ + 우선 낙첨자). 다자녀·노부모는 배점/순위.'} 단수·소수는 공고에서 조정될 수 있어요.</div>
     </div>`);
   }
+
+  // ===== 일반공급 단계별 (가점/추첨 무주택·혼합) =====
+  (function(){
+    const T2=c.types||[]; const genS=T2.reduce((a,t)=>a+(Number(t.gen)||0),0);
+    if(genS<=0) return;
+    if(mode==='민영'){
+      const S=T2.reduce((acc,t)=>{const s=splitGaChJS(Number(t.gen)||0,Number(t.area)||0,c.regulated); acc.ga+=s.ga; acc.ch+=s.ch; acc.muju+=s.chMuju; acc.mix+=s.chMix; return acc;},{ga:0,ch:0,muju:0,mix:0});
+      const gaS=S.ga, chS=S.ch, mujuS=S.muju, mixS=S.mix;
+      const regd = c.regulated==='투기과열지구'||c.regulated==='청약과열지역';
+      out.push(`<div class="card"><h2>🏢 일반공급 — 단계별 몇 세대? <span class="muted small" style="font-weight:400">총 ${genS}세대</span></h2>
+        <div style="overflow-x:auto"><table><thead><tr><th>단계</th><th>세대</th><th>선정 방식</th></tr></thead><tbody>
+          <tr><td style="text-align:left"><b>가점제</b></td><td><b>${gaS}</b></td><td style="text-align:left">무주택 <b>가점 다득점순</b> (84점 만점)</td></tr>
+          <tr><td style="text-align:left"><b>🎲 추첨제</b></td><td><b style="color:var(--ok)">${chS}</b></td><td style="text-align:left">${regd?`└ 무주택 우선 <b>${mujuS}</b> (75%)<br>└ 잔여 <b>${mixS}</b> (25%·무주택+1주택 처분조건)`:`무주택+1주택 <b>한 풀 추첨</b> (무주택 우선 없음)`}</td></tr>
+        </tbody></table></div>
+        <div class="small muted" style="margin-top:8px">${regd?'규제지역은 추첨의 <b>75%를 무주택자에게 우선</b> 배정하고, 나머지 25%만 1주택자(기존주택 처분조건)도 함께 경쟁합니다. <b>1주택자는 잔여 25%</b>가 유일한 통로예요.':'비규제는 추첨에 무주택 우선이 없어 <b>1주택자도 추첨 전체</b>에 함께 들어갑니다.'} 가점:추첨 비율은 규제·면적별 법정값(이 단지 ${c.regulated}).</div>
+      </div>`);
+    } else if(mode==='공공'){
+      out.push(`<div class="card"><h2>🏢 일반공급 (순차제) — 총 ${genS}세대</h2>
+        <div style="overflow-x:auto"><table><thead><tr><th>단계</th><th>비중</th><th>선정 방식</th></tr></thead><tbody>
+          <tr><td style="text-align:left"><b>1순위 우선</b></td><td>약 80%</td><td style="text-align:left">무주택 3년↑ · <b>40㎡ 초과=저축총액</b> / <b>40㎡ 이하=납입횟수</b> 많은 순</td></tr>
+          <tr><td style="text-align:left">잔여</td><td>약 20%</td><td style="text-align:left">1순위 낙첨자 + 2순위</td></tr>
+        </tbody></table></div>
+        <div class="small muted" style="margin-top:8px">공공분양 일반공급은 가점·추첨이 아니라 <b>순차제</b> — 무주택 기간·청약통장 저축이 핵심이고 <b>세대원 전원 무주택</b>이어야 해요.</div>
+      </div>`);
+    }
+  })();
 
   // ===== 일반공급 평형 =====
   const chuchumScope = houses===0?'all':houses===1?'mixOnly':'none';
