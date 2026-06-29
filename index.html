@@ -1062,7 +1062,7 @@ function analyze(switchTab){
     th+=`<div class="res-block">${detail}</div>`;
   });
   th+=`</div>`;
-  out.push(th);
+  // 🏢 일반공급 평형별 카드 제거 — 위 🥧 당첨 물량 표가 대체 (타입별 나열 중복 방지). out.push 생략.
 
   // 💰 자금계획 — 분석에 병합 (별도 탭 X)
   out.push(moneyHTML());
@@ -1330,14 +1330,15 @@ function moneyHTML(){
     const cl=tot-ln.amt;
     const jn=Math.round(pp*jeonseRate/100), cg=tot-jn;
     const sel=(FIN.type&&FIN.type===t.name)||(!FIN.type&&priceType.indexOf(t.name)===0);
-    const cashCmp=v=>myCash>0?(myCash>=v?' ✅':' ❌'):'';
+    const shortLive=Math.max(0,cl-myCash);
     return `<tr${sel?' style="background:var(--chip)"':''}>
       <td style="text-align:left"><b>${t.name.replace(/^0+/,'')}</b> <span class="muted small">${(+t.area).toFixed(0)}㎡</span></td>
       <td>${eokStr(pp)}</td>
       <td class="muted">${eokStr(tx)}</td>
       <td>${ln.amt>0?`<b style="color:var(--accent)">${eokStr(ln.amt)}</b>`:'<span class="pill bad small">불가</span>'}</td>
-      <td style="color:var(--accent2)"><b>${eokStr(cl)}</b><span class="small">${cashCmp(cl)}</span></td>
-      <td>${jeonseBlocked?'<span class="muted">불가</span>':`<b style="color:var(--accent2)">${eokStr(cg)}</b><span class="small">${cashCmp(cg)}</span>`}</td>
+      <td style="color:var(--accent2)"><b>${eokStr(cl)}</b></td>
+      <td>${jeonseBlocked?'<span class="muted">불가</span>':`<b style="color:var(--accent2)">${eokStr(cg)}</b>`}</td>
+      <td>${myCash>0?(shortLive<=0?'<span class="pill ok small">충분</span>':`<b style="color:var(--bad)">${eokStr(shortLive)}</b>`):`<span class="muted small">${eokStr(cl)}</span>`}</td>
     </tr>`;
   }).join('');
   const cmpList = LOANTYPES.map(lt=>({lt, r:loanForType(lt, price, over85, income, isFirstHome, houses, reg, sudo, repay, stressPP)}));
@@ -1348,8 +1349,8 @@ function moneyHTML(){
       <label style="display:flex;align-items:center;gap:4px">대출유형 <select onchange="var e=document.getElementById('f_loantype');if(e)e.value=this.value;analyze(false)" style="width:auto;padding:4px 6px"><option value="자동"${ltSel==='자동'?' selected':''}>자동(${isFirstHome?'생애최초':'일반'})</option>${LOANTYPES.map(x=>`<option value="${x}"${ltSel===x?' selected':''}>${LOANLABEL[x]}</option>`).join('')}</select></label>
       <label style="display:flex;align-items:center;gap:4px">보유현금 <input type="number" value="${myCash||''}" placeholder="만원" onchange="var e=document.getElementById('f_cash');if(e)e.value=this.value;analyze(false)" style="width:72px;padding:4px 6px">만</label>
     </div>`:''}
-    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>취득세</th><th>대출가능<br><span class="muted small" style="font-weight:400">${LOANLABEL[ltUse]}</span></th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th></tr></thead><tbody>${typeRows}</tbody></table></div>
-      <div class="small muted" style="margin-top:8px">필요현금 = <b>분양가 + 취득세 − 대출</b> <span class="muted small">(순수 주택가격 기준·옵션 제외)</span>. ${myCash>0?'✅충분/❌부족.':'보유현금 넣으면 ✅❌.'}</div>
+    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>취득세</th><th>대출가능<br><span class="muted small" style="font-weight:400">${LOANLABEL[ltUse]}</span></th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th><th>③ 더<br>모을 돈</th></tr></thead><tbody>${typeRows}</tbody></table></div>
+      <div class="small muted" style="margin-top:8px">필요현금 = <b>분양가 + 취득세 − 대출</b> <span class="muted small">(순수 주택가격·옵션 제외)</span>. <b>③ 더 모을 돈</b> = 실입주 필요현금 − 보유현금${myCash>0?'':' (보유현금 넣으면 부족분만 표시)'}.<br>${CFG.supplyType==='무순위'||CFG.supplyType==='임의공급'?'⏰ <b>무순위·임의는 이미 지어진 집</b> — 입주가 임박해 <b>중도금 없이 계약금+잔금</b>을 바로 치러야 해요(대출·현금 빨리 준비).':'🗓️ 일반 분양은 <b>계약금→중도금→잔금으로 2~3년 분납</b> — 그 사이 ③을 모으면 됩니다(지금 당장은 계약금 ${eokStr(downPay)}).'}</div>
       <div class="res-block" style="margin-top:10px;border-color:var(--accent2)"><h3 style="font-size:13px">🏦 이 집·소득에 가능한 대출 — 여러 시나리오 <span class="muted small">${priceType||''} ${eokStr(price)}</span></h3>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${cmpList.map(c=>`<div style="flex:1;min-width:112px;border:1px solid var(--line);border-radius:8px;padding:6px 8px${c.lt===ltUse?';background:var(--chip);border-color:var(--accent)':''}"><div class="small"><b>${LOANLABEL[c.lt]}</b></div>${c.r.amt>0?`<div><b style="color:var(--accent)">${eokStr(c.r.amt)}</b></div><div class="muted small">${c.r.note||''}</div>`:`<div class="muted small">불가</div><div class="muted small">${c.r.why||''}</div>`}</div>`).join('')}</div>
         <div class="small muted" style="margin-top:6px">💡 정책대출(신생아·보금자리·디딤돌)은 <b>집값·소득·85㎡ 상한</b> 충족 시 <b>저금리·DSR 미적용</b>이라 더 받을 수 있어요. 위 <b>대출유형</b>을 바꾸면 표가 갱신됩니다.</div>
