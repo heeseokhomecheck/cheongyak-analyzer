@@ -866,7 +866,7 @@ function analyze(switchTab){
       return {ok:true}; }
     return {ok:true}; // 민영 우선/일반은 자산 무관
   }
-  function verdict(req, inc, as){
+  function verdict(req, inc, as, type){
     if(req.ok===false) return {icon:'❌', cls:'bad', msg:req.why};
     if(as.ok===false)  return {icon:'❌', cls:'bad', msg:as.why};
     if(inc.ok===false) return {icon:'❌', cls:'bad', msg:'소득 초과'};
@@ -876,6 +876,9 @@ function analyze(switchTab){
     }
     if(req.ok===null)  return {icon:'❓', cls:'warn', msg:req.why};
     if(inc.ok===null)  return {icon:'❓', cls:'warn', msg:'소득 입력 필요'};
+    // 민영 신혼/생초/신생아: 소득은 우선·일반 충족이나 부동산 3.31억 초과 → 추첨은 불가, 우선·일반 자산요건은 공고별 확인 필요
+    if(grp==='민영' && ['신혼부부','생애최초','신생아'].includes(specialKey(type||'')) && myAsset>0 && myAsset>RULES_ASSET.민영.부동산)
+      return {icon:'△', cls:'warn', msg:`부동산 ${eokStr(RULES_ASSET.민영.부동산)} 초과 — 추첨 불가 (우선·일반 자산요건은 공고 확인)`};
     return {icon:'✅', cls:'ok', msg:'신청 가능'};
   }
   const assetOf=()=>{ const a = mode==='신혼희망타운'?RULES_ASSET.신혼희망:RULES_ASSET[grp]||{};
@@ -884,7 +887,7 @@ function analyze(switchTab){
     return '무관'; };
   let rows='', okSpecials=[];
   c.special.forEach(s=>{
-    const req=reqInfo(s.type), inc=incomeInfo(s), v=verdict(req,inc,assetCheck(s.type));
+    const req=reqInfo(s.type), inc=incomeInfo(s), v=verdict(req,inc,assetCheck(s.type),s.type);
     if(v.icon==='✅') okSpecials.push(s.type);
     const qty=Number(s.qty||0);
     const lotN=lotteryUnits(grp, s.type, qty), priorN=Math.max(0,qty-lotN);
