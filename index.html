@@ -1137,6 +1137,25 @@ function ltvFor(reg, houses, isFirstHome){   // 실수요 LTV + 사유
   return {ltv: POLICY_LOAN.ltvTable[key][reg?1:0], why: isFirstHome?'생애최초 우대':'무주택·처분조건부 실수요'};
 }
 function isSudogwon(region){ return /서울|경기|인천/.test(region||''); }
+/* 정책대출(주택도시기금·주금공) — 2026, 6.27 이후. 보금자리=DSR 미적용 / 디딤돌=DTI 60%(일반 주담대 DSR 40%보다 후함).
+   단 집값·소득·면적(85㎡) 상한 있음. 한도·요건은 수시 변동 → 신청 시 기금e든든·은행 확인. 출처: hf.go.kr·myhome.go.kr */
+const POLICY_GOVLOAN = {면적:85, 목록:[
+  {name:'신생아 특례 디딤돌', price:90000, income:20000, limit:40000, rate:'연 1~3%대', need:'newborn', why:'2년내 출산·집값 9억↓·부부소득 2억↓'},
+  {name:'디딤돌(신혼·2자녀↑)', price:60000, income:8500,  limit:32000, rate:'연 2~3%대', need:'newlywed', why:'집값 6억↓·소득 8.5천↓·85㎡↓'},
+  {name:'디딤돌(생애최초)',   price:50000, income:7000,  limit:24000, rate:'연 2~3%대', need:'first',    why:'집값 5억↓·소득 7천↓·85㎡↓'},
+  {name:'보금자리론',         price:60000, income:8500,  limit:36000, rate:'연 3~4%대', need:'any',      why:'집값 6억↓·소득 8.5천↓·DSR 미적용'},
+]};
+function govLoans(price, annualIncome, over85, flags){   // 자격 충족 정책대출 목록 (전용 85㎡ 초과면 전부 제외)
+  if(!(price>0) || over85) return [];
+  return POLICY_GOVLOAN.목록.filter(g=>{
+    if(price>g.price) return false;
+    if(annualIncome>0 && annualIncome>g.income) return false;
+    if(g.need==='newborn'  && !flags.newborn) return false;
+    if(g.need==='newlywed' && !(flags.newlywed||flags.children>=2)) return false;
+    if(g.need==='first'    && !flags.first) return false;
+    return true;
+  });
+}
 /* 적용 중인 부동산 규제 요약 (시행일·근거) — 새 대책 나오면 여기 갱신 */
 const POLICY_ASOF='2026.6';   // 정책 기준일 — 새 대책 반영 시 갱신
 const POLICY_META = [
@@ -1213,6 +1232,20 @@ function moneyHTML(){
   const cashGap=totalCost-jeonse;
   const myCash=Number(FIN.cash||0);
 
+  // 분양 자금 스케줄(계약금 10·중도금 60·잔금 30) + 정책대출 판정
+  const downPct=10, midPct=60;                        // 통상값(단지별 상이)
+  const downPay=Math.round(price*downPct/100);        // 계약금
+  const midPay=Math.round(price*midPct/100);          // 중도금 총액
+  const midLoanPct=reg?40:60;                         // 중도금 집단대출 한도(규제 40%/비규제 60%)
+  const midLoan=Math.round(price*midLoanPct/100);
+  const midSelf=Math.max(0,midPay-midLoan);           // 중도금 중 자비
+  const balPay=Math.max(0,totalCost-downPay-midPay);  // 잔금(+취득세·부대)
+  const annualInc=income*12;                          // 소득은 월(만원) → 연 환산
+  const govList=govLoans(price, annualInc, over85, {
+    newborn:Number(ME&&ME.newborn)===1,
+    newlywed:(ME&&ME.marital)==='married'&&Number((ME&&ME.marryYears)||99)<=7,
+    first:isFirstHome, children:Number((ME&&ME.children)||0)});
+
   // 타입별 필요현금 표 (고를 필요 없이 전 타입 비교)
   const typeRows=(CFG.types||[]).filter(t=>Number(t.price)>0).sort((a,b)=>a.price-b.price).map(t=>{
     const pp=Number(t.price), o85=(+t.area>85);
@@ -1248,7 +1281,15 @@ function moneyHTML(){
       <div class="kv"><span><b>총 취득원가</b></span><span class="r big">${won(totalCost)}만</span></div>
     </div>
 
-    <div class="res-block"><h3>대출 가능액 <span class="tag">6.27 대책 반영</span></h3>
+    <div class="res-block"><h3>📅 분양 자금 스케줄 <span class="muted small">한 번에 안 냄 — 계약금·중도금·잔금</span></h3>
+      <div class="kv"><span>계약금 <span class="muted small">분양가 ${downPct}% · 당첨 직후</span></span><span class="r"><b style="color:var(--accent)">${won(downPay)}만</b> <span class="muted small">(${eokStr(downPay)})</span></span></div>
+      <div class="kv"><span>중도금 <span class="muted small">분양가 ${midPct}% · 2~3년 분납</span></span><span class="r">${won(midPay)}만</span></div>
+      <div class="kv"><span>↳ 중도금 대출 <span class="muted small">${reg?'규제 40%':'비규제 60%'} 집단대출${sangsanje?'·이자후불제':''}</span></span><span class="r">${won(midLoan)}만 ${midSelf>0?`<span class="pill warn">자비 ${eokStr(midSelf)}</span>`:'<span class="pill ok">전액 대출</span>'}</span></div>
+      <div class="kv"><span>잔금 <span class="muted small">분양가 ${100-downPct-midPct}% + 취득세·부대 · 입주 시</span></span><span class="r">${won(balPay)}만</span></div>
+      <div class="small muted" style="margin-top:6px">💡 분양가를 <b>한 번에 내지 않고</b> 2~3년 나눠 냅니다. <b>지금 당장 필요한 현금은 계약금 ${eokStr(downPay)}</b>. 중도금은 집단대출로 충당하고, 입주 때 중도금대출이 <b>아래 잔금 주담대로 전환</b>돼요(이때 DSR·LTV 적용).</div>
+    </div>
+
+    <div class="res-block"><h3>대출 가능액 <span class="tag">6.27 대책 반영</span> <span class="muted small">입주 시 잔금 주담대</span></h3>
       <div class="kv"><span>LTV ${ltv}%${isFirst?' <span class="pill ok">생애최초</span>':''} × 분양가</span><span class="r">${ltv===0?'<span class="pill bad">대출 불가</span>':won(ltvLimit)+'만'}</span></div>
       <div class="small ${ltv===0?'':'muted'}" style="text-align:right${ltv===0?';color:var(--bad)':''}">${ltv===0?'⛔ ':'↳ '}${ltvNote}</div>
       ${cap!==Infinity?`<div class="kv"><span style="color:var(--bad)"><b>가격별 한도</b> <span class="muted small">${eokStr(price)} → ${capLabel}</span></span><span class="r" style="color:var(--bad)"><b>${won(cap)}만 (${capLabel})</b></span></div>`:''}
@@ -1261,6 +1302,12 @@ function moneyHTML(){
       ${repay==='체증식'?`<div class="small" style="color:var(--warn);text-align:right">⚠️ 체증식은 초기 상환부담이 낮지만, 현행 DSR 규제상 한도 이점이 제한돼 <b>균등상환 기준으로 보수 산정</b>했습니다(실제 한도는 은행 확인).</div>`:''}
       ${(loan===cap&&cap!==Infinity&&ltvLimit>cap)?`<div class="small" style="color:var(--bad);margin-top:4px">⚠️ LTV로는 ${won(ltvLimit)}만 되지만, 6.27 대책으로 <b>${eokStr(price)} 주택은 ${capLabel}까지만</b> 나옵니다.</div>`:''}
       <div class="small muted" style="margin-top:6px"><b>대출 총량(1주택):</b> 주담대 + 신용대출이 <b>DSR 40%에 합산</b>됩니다 — 주담대를 최대로 받으면 신용 여력은 거의 없어요(소득 따라 ~1억 내외). 전세대출은 ②번(전세 끼고)에서 <b>세입자</b>가 받는 것(보증금 80%)입니다.</div>
+    </div>
+
+    <div class="res-block"${govList.length?' style="border-color:var(--ok)"':''}><h3>🏦 정책대출 <span class="muted small">디딤돌·보금자리·신생아 특례 — 일반 주담대의 '다른 결'</span></h3>
+      ${govList.length?`${govList.map(g=>`<div class="kv"><span><b>${g.name}</b> <span class="muted small">${g.why}</span></span><span class="r"><b style="color:var(--ok)">~${eokStr(g.limit)}</b> <span class="muted small">${g.rate}</span></span></div>`).join('')}
+      <div class="small" style="color:var(--ok);margin-top:6px">✅ 자격(집값·소득·85㎡) 충족 — <b>DSR 없이(보금자리) 또는 DTI 60%(디딤돌)·저금리</b>라 위 일반 주담대보다 유리할 수 있어요. 한도가 모자라면 일반 주담대와 혼합. <b>실제 한도·금리·중복 가능 여부는 기금e든든·은행 확인</b>(값 수시 변동).</div>`
+      :`<div class="small muted">현재 입력 기준 <b>해당 없음</b>. 정책대출은 보통 <b>집값 5~9억↓·전용 85㎡↓·소득 상한</b>이 있어요(신생아 특례가 집값 9억·소득 2억↓으로 가장 넓음). ${price>90000?`이 단지(${eokStr(price)})는 집값 상한 초과 → <b>일반 주담대만</b> 가능합니다.`:over85?'전용 <b>85㎡ 초과</b>라 디딤돌·보금자리·신생아 특례 대상이 아닙니다 → 일반 주담대만.':'소득·자격(생애최초/신혼/신생아)을 입력하면 자동 판정됩니다.'}</div>`}
     </div>
 
     <div class="res-block" style="border-color:var(--gold)"><h3>① 바로 실입주 (주담대 + 현금)</h3>
