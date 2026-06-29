@@ -760,6 +760,27 @@ function analyze(switchTab){
     <div class="kv"><span>일반공급 신청방식</span><span class="r">${applyLine}</span></div>
   </div>`);
 
+  // ⚠️ 부적격·재당첨 리스크 — 10년 제한 직결, 당첨 전 자가진단
+  const _reg2 = !!c.regulated && !/비규제|^—?$/.test(c.regulated);
+  const isOfftl = c.supplyType==='오피스텔';
+  const isNosun = c.supplyType==='무순위' || c.supplyType==='임의공급';
+  const redrawY = isOfftl ? 0 : /투기과열|분양가상한|분상제/.test(c.regulated||'') ? 10 : /조정/.test(c.regulated||'') ? 7 : 0;
+  const redrawTxt = isOfftl
+    ? '<span class="pill ok">해당 없음</span> <span class="muted small">오피스텔=주택 아님(청약통장·재당첨 제한과 별개)</span>'
+    : redrawY>0
+      ? `<span class="pill warn">향후 ${redrawY}년</span> 다른 분양 당첨 제한${isNosun?' <span class="muted small">(무순위/임의는 일부 완화 — 공고 확인)</span>':''}`
+      : '<span class="pill ok">없음</span> <span class="muted small">비규제 단지</span>';
+  out.push(`<div class="card"><h2>⚠️ 부적격·재당첨 리스크 <span class="muted small" style="font-weight:400">당첨 전 자가진단 — 잘못 넣으면 청약 제한</span></h2>
+    <div class="kv"><span>이 단지 당첨 시 <b>재당첨 제한</b> <span class="muted small">${c.regulated||'규제 미상'}</span></span><span class="r" style="text-align:right;max-width:62%">${redrawTxt}</span></div>
+    ${!isOfftl?`<div class="kv"><span>부적격 당첨 시 <span class="muted small">서류·요건 착오</span></span><span class="r">${_reg2?'규제지역 <b>1년</b>':isSudogwon(c.region)?'수도권 <b>1년</b>':'수도권 외 <b>6개월</b>'} 제한 + 당첨취소</span></div>`:''}
+    <div class="small" style="margin-top:8px;line-height:1.9"><b>흔한 탈락 사유 — 넣기 전 꼭 확인:</b><br>
+      ${houses>0?'⚠️':'✅'} 세대 전원 무주택 ${houses>0?`<span class="muted small">(보유 ${houses}채 — 특공·공공 일반은 탈락 가능)</span>`:'<span class="muted small">(분양권·오피스텔도 주택 수 포함될 수 있음)</span>'}<br>
+      ${Number(m.pastWin)===1?'⚠️':'✅'} 최근 당첨·재당첨 제한 없음 ${Number(m.pastWin)===1?'<span class="muted small">(제한 기간 중이면 부적격)</span>':''}<br>
+      ✅ 세대원 <b>중복 청약·당첨</b> 없음 <span class="muted small">(같은 공고에 세대원 2명↑ 신청 시 전원 무효)</span><br>
+      ✅ <b>거주지·통장·소득·자산·세대주</b> 요건 — 위 판정과 공고문 재확인</div>
+    <div class="note" style="border-color:var(--bad);margin-top:10px">🚨 <b>위장전입·위장이혼·통장 매매</b> 등 부정청약 = <b>10년 청약 제한 + 형사처벌(3년↓ 징역/3천만원↓ 벌금) + 계약취소·주택환수·계약금(10%) 몰수</b>. 거주지·세대 요건은 반드시 실제 사실대로만 넣으세요.</div>
+  </div>`);
+
   // 소득 기준값(가구원수별) — 공공/특공 판정 공용
   const hh=Math.max(1,Number(m.hhSize||1));
   const base=c.incomeBase[Math.min(hh,c.incomeBase.length)-1]||c.incomeBase[c.incomeBase.length-1]||0;
