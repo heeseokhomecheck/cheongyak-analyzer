@@ -224,6 +224,8 @@
           <div class="field"><label>전세보증금 직접 (만원)</label><input id="f_jeonse" type="number" placeholder="비우면 자동"></div>
           <div class="field"><label>분양가상한제 단지? <span class="muted small">민영 분상제(강남4구·둔촌 등) · 공공/신희타는 자동</span></label>
             <select id="f_duty"><option value="0">아니오 / 모름</option><option value="1">예 (분상제 — 첫 전세만, 3년내 거주)</option></select></div>
+          <div class="field"><label>공공 뉴홈 유형 <span class="muted small">공공분양 — 비우면 공고명 자동감지</span></label>
+            <select id="f_newhome"><option value="">자동감지</option><option value="일반형">일반형 (시세 80%)</option><option value="나눔형">나눔형 (시세 70%·차익 70%)</option><option value="선택형">선택형 (6년 임대후 분양)</option></select></div>
           <div class="field"><label>취득세 직접 (만원)</label><input id="f_taxOverride" type="number" placeholder="비우면 자동"></div>
         </div>
       </div>
@@ -1156,6 +1158,20 @@ function govLoans(price, annualIncome, over85, flags){   // 자격 충족 정책
     return true;
   });
 }
+/* 뉴:홈(공공분양) 3유형 — 분양가·거주의무·환매/분양전환 구조가 완전히 다름. 출처: 뉴홈 소개·KDI */
+const NEWHOME = {
+  나눔형:{시세:'70%↓', 거주:'5년', 환매:'5년 후 공공 환매 시 <b>시세차익 70%만 본인</b>(30% 공공 귀속)', 모기지:'전용 모기지 연 1.9~3% 고정·최대 5억', 한줄:'가장 저렴하지만 <b>시세차익이 제한</b>돼요(자산증식 ↓). 실거주·안정 우선이면 유리.'},
+  선택형:{시세:'임대 후 결정', 거주:'6년 임대', 환매:'6년 임대 거주 후 <b>분양 전환 선택</b> · 분양가=(입주 시 추정분양가+분양 시 감정가)÷2', 모기지:'전용 모기지(분양 전환 시)', 한줄:'<b>6년 살아보고</b> 분양 결정 — 지역 확신 없을 때. 차익은 전액 본인이지만 분양가가 오를 수 있어요.'},
+  일반형:{시세:'80%', 거주:'시세 80%↓ 5년 / 80~100% 3년', 환매:'없음 — <b>소유권 완전 이전</b>, 시세차익 전액 본인', 모기지:'일반 주담대(정책대출 자격 시 병행)', 한줄:'전통적 공공분양 — 차익 전액 본인. 자금 여력 되고 자산상승 노리면 선호.'}
+};
+function newhomeType(){   // 자금가정 선택 우선, 없으면 공고명에서 감지
+  if(FIN.newhome) return FIN.newhome;
+  const n=(CFG.name||'')+' '+(CFG.supplyType||'');
+  if(/나눔형|이익공유/.test(n)) return '나눔형';
+  if(/선택형/.test(n)) return '선택형';
+  if(/일반형/.test(n)) return '일반형';
+  return null;
+}
 /* 적용 중인 부동산 규제 요약 (시행일·근거) — 새 대책 나오면 여기 갱신 */
 const POLICY_ASOF='2026.6';   // 정책 기준일 — 새 대책 반영 시 갱신
 const POLICY_META = [
@@ -1245,6 +1261,7 @@ function moneyHTML(){
     newborn:Number(ME&&ME.newborn)===1,
     newlywed:(ME&&ME.marital)==='married'&&Number((ME&&ME.marryYears)||99)<=7,
     first:isFirstHome, children:Number((ME&&ME.children)||0)});
+  const nhType=newhomeType();   // 뉴홈 유형(나눔형/선택형/일반형) — 공공분양일 때 안내
 
   // 타입별 필요현금 표 (고를 필요 없이 전 타입 비교)
   const typeRows=(CFG.types||[]).filter(t=>Number(t.price)>0).sort((a,b)=>a.price-b.price).map(t=>{
@@ -1310,6 +1327,15 @@ function moneyHTML(){
       :`<div class="small muted">현재 입력 기준 <b>해당 없음</b>. 정책대출은 보통 <b>집값 5~9억↓·전용 85㎡↓·소득 상한</b>이 있어요(신생아 특례가 집값 9억·소득 2억↓으로 가장 넓음). ${price>90000?`이 단지(${eokStr(price)})는 집값 상한 초과 → <b>일반 주담대만</b> 가능합니다.`:over85?'전용 <b>85㎡ 초과</b>라 디딤돌·보금자리·신생아 특례 대상이 아닙니다 → 일반 주담대만.':'소득·자격(생애최초/신혼/신생아)을 입력하면 자동 판정됩니다.'}</div>`}
     </div>
 
+    ${(nhType||CFG.supplyType==='공공')?`<div class="res-block" style="border-color:var(--accent2)"><h3>🏡 뉴:홈(공공분양) 유형 ${nhType?`<span class="pill ok">${nhType}</span>`:'<span class="muted small">유형 미지정 — 자금가정에서 선택</span>'}</h3>
+      ${nhType?`<div class="kv"><span>분양가 수준</span><span class="r"><b>시세 ${NEWHOME[nhType].시세}</b></span></div>
+      <div class="kv"><span>거주의무</span><span class="r">${NEWHOME[nhType].거주}</span></div>
+      <div class="kv"><span>환매·소유</span><span class="r" style="text-align:right;max-width:62%">${NEWHOME[nhType].환매}</span></div>
+      <div class="kv"><span>전용 모기지</span><span class="r" style="text-align:right;max-width:62%">${NEWHOME[nhType].모기지}</span></div>
+      <div class="small" style="margin-top:6px;color:var(--accent2)">💡 ${NEWHOME[nhType].한줄}</div>`
+      :`<div class="small muted">이 공고가 뉴:홈이면 <b>일반형/나눔형/선택형</b> 중 무엇인지에 따라 <b>분양가·거주의무·시세차익</b>이 크게 달라요. 자금가정 → <b>공공 뉴홈 유형</b>에서 선택하면 구조를 안내합니다.<br>· <b>나눔형</b> 시세70%·차익70%만 · <b>선택형</b> 6년 임대후 분양 · <b>일반형</b> 시세80%·차익 전액</div>`}
+    </div>`:''}
+
     <div class="res-block" style="border-color:var(--gold)"><h3>① 바로 실입주 (주담대 + 현금)</h3>
       <div class="kv"><span>대출 ${eokStr(loan)} + 현금</span><span class="r big" style="color:var(--gold)">${won(cashLive)}만 <span class="muted small">(${eokStr(cashLive)})</span></span></div>
       ${myCash>0?`<div class="kv"><span>내 보유현금 ${eokStr(myCash)}</span><span class="r">${myCash>=cashLive?`<span class="pill ok">분양 가능</span> 여유 ${eokStr(myCash-cashLive)}`:`<span class="pill bad">부족</span> ${eokStr(cashLive-myCash)} 모자람`}</span></div>`:'<div class="small muted">보유현금을 입력하면 가능/부족 판정.</div>'}
@@ -1351,7 +1377,7 @@ function moneyHTML(){
 const ME_FIELDS=['sido','gugun','resideMonths','householder','houses','nohomeYears','dependents','acctMonths','payCount','savings','deposit','hhSize','dual','income','asset','car','marital','marryYears','children','newborn','firstever','age','pastWin'];
 function collectMe(){ ME={}; ME_FIELDS.forEach(f=>ME[f]=$('m_'+f).value); }
 function restoreMe(){ ME_FIELDS.forEach(f=>{ if(ME[f]!=null&&$('m_'+f)) $('m_'+f).value=ME[f]; }); }
-const FIN_FIELDS=['type','price','over85','optExpand','optAC','optEtc','etc','ltv','firstLtv','loancap','dsr','rate','term','repay','jeonse','jeonseRate','duty','taxOverride','cash'];
+const FIN_FIELDS=['type','price','over85','optExpand','optAC','optEtc','etc','ltv','firstLtv','loancap','dsr','rate','term','repay','jeonse','jeonseRate','duty','newhome','taxOverride','cash'];
 function populateTypeSelect(){
   const sel=$('f_type'); if(!sel) return;
   const cur=sel.value;
