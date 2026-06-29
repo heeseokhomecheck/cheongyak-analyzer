@@ -214,6 +214,7 @@
           <div class="field"><label>LTV 한도 (%) <span class="muted small">비우면 자동(규제·주택수·생애최초)</span></label><input id="f_ltv" type="number" placeholder="자동"></div>
           <div class="field"><label>생애최초 LTV 우대 <span class="muted small">내 조건과 자동연동</span></label>
             <select id="f_firstLtv"><option value="0">자동(내 조건 따름)</option><option value="1">강제 적용</option></select></div>
+          <input type="hidden" id="f_loantype" value="자동">
           <div class="field"><label>대출 절대상한 (만원) <span class="muted small">비우면 가격별 자동</span></label><input id="f_loancap" type="number" placeholder="자동(6/4/2억)"></div>
           <div class="field"><label>DSR 한도 (%)</label><input id="f_dsr" type="number" value="40"></div>
           <div class="field"><label>금리 (연 %) <span class="muted small" id="rateHint">1금융권 평균 참고</span></label><input id="f_rate" type="number" step="0.1" value="4.0"></div>
@@ -1185,6 +1186,39 @@ const NEWHOME = {
   선택형:{시세:'임대 후 결정', 거주:'6년 임대', 환매:'6년 임대 거주 후 <b>분양 전환 선택</b> · 분양가=(입주 시 추정분양가+분양 시 감정가)÷2', 모기지:'전용 모기지(분양 전환 시)', 한줄:'<b>6년 살아보고</b> 분양 결정 — 지역 확신 없을 때. 차익은 전액 본인이지만 분양가가 오를 수 있어요.'},
   일반형:{시세:'80%', 거주:'시세 80%↓ 5년 / 80~100% 3년', 환매:'없음 — <b>소유권 완전 이전</b>, 시세차익 전액 본인', 모기지:'일반 주담대(정책대출 자격 시 병행)', 한줄:'전통적 공공분양 — 차익 전액 본인. 자금 여력 되고 자산상승 노리면 선호.'}
 };
+/* 대출 유형별 가능액 시나리오 — 같은 집·소득에 어떤 대출로 얼마? (만원)
+   일반·생애최초=은행 주담대(DSR 적용) / 신생아특례·보금자리·디딤돌=정책대출(집값·소득·85㎡ 상한, DSR 미적용/DTI) */
+function loanForType(type, price, over85, monthlyIncome, isFirst, houses, reg, sudo, repay, stressPP){
+  const annual=monthlyIncome*12;
+  const dsr = monthlyIncome>0 ? dsrLimit(monthlyIncome,Number(FIN.dsr||40),Number(FIN.rate||4),Number(FIN.term||30),repay,stressPP) : Infinity;
+  if(type==='신생아특례'){
+    if(over85) return {amt:0,why:'전용 85㎡ 초과'};
+    if(price>90000) return {amt:0,why:'집값 9억 초과'};
+    if(annual>0&&annual>20000) return {amt:0,why:'부부소득 2억 초과'};
+    return {amt:Math.min(40000, Math.round(price*(reg||sudo?70:80)/100)), note:'한도 4억·저금리·DTI'};
+  }
+  if(type==='보금자리'){
+    if(over85) return {amt:0,why:'전용 85㎡ 초과'};
+    if(price>60000) return {amt:0,why:'집값 6억 초과'};
+    if(annual>0&&annual>8500) return {amt:0,why:'소득 8.5천 초과'};
+    return {amt:Math.min(36000, Math.round(price*70/100)), note:'한도 3.6억·DSR 미적용'};
+  }
+  if(type==='디딤돌'){
+    const pc=isFirst?50000:60000, lim=isFirst?24000:32000, inc=isFirst?7000:8500;
+    if(over85) return {amt:0,why:'전용 85㎡ 초과'};
+    if(price>pc) return {amt:0,why:`집값 ${eokStr(pc)} 초과`};
+    if(annual>0&&annual>inc) return {amt:0,why:'소득 상한 초과'};
+    return {amt:Math.min(lim, Math.round(price*70/100)), note:`한도 ${eokStr(lim)}·저금리·DTI`};
+  }
+  // 일반 / 생애최초 — 은행 주담대(DSR 적용, LTV만 차이)
+  const first = type==='생애최초';
+  const lf = ltvFor(reg, houses, first);
+  if(lf.ltv===0) return {amt:0, why:lf.why};
+  const amt=Math.max(0,Math.min(price*lf.ltv/100, capFor(price,sudo), dsr));
+  return {amt:Math.round(amt), note:`LTV ${lf.ltv}%·가격한도·DSR 중 최소`, ltv:lf.ltv};
+}
+const LOANTYPES=['일반','생애최초','신생아특례','보금자리','디딤돌'];
+const LOANLABEL={일반:'일반 주담대', 생애최초:'생애최초 주담대', 신생아특례:'신생아 특례', 보금자리:'보금자리론', 디딤돌:'디딤돌'};
 function newhomeType(){   // 자금가정 선택 우선, 없으면 공고명에서 감지
   if(FIN.newhome) return FIN.newhome;
   const n=(CFG.name||'')+' '+(CFG.supplyType||'');
@@ -1284,42 +1318,48 @@ function moneyHTML(){
     first:isFirstHome, children:Number((ME&&ME.children)||0)});
   const nhType=newhomeType();   // 뉴홈 유형(나눔형/선택형/일반형) — 공공분양일 때 안내
 
-  // 타입별 필요현금 표 (고를 필요 없이 전 타입 비교)
+  // 대출 유형 시나리오(선택) — 일반/생애최초/정책대출
+  const ltSel = FIN.loantype||'자동';
+  const ltUse = ltSel==='자동' ? (isFirstHome?'생애최초':'일반') : ltSel;
+  // 타입별 표 — 순수 주택가격(분양가+취득세) 기준, 선택 대출유형 반영
   const typeRows=(CFG.types||[]).filter(t=>Number(t.price)>0).sort((a,b)=>a.price-b.price).map(t=>{
     const pp=Number(t.price), o85=(+t.area>85);
-    const tx=firstHomeDiscount(acqTax(pp+opt,o85,houses,CFG.regulated,0), pp+opt, isFirstHome, houses), tot=pp+opt+tx.tax+etc;
-    const ln=Math.max(0,Math.min(pp*ltv/100,capFor(pp,sudo),dsrLim)), cl=tot-ln;
+    const tx=firstHomeDiscount(acqTax(pp,o85,houses,CFG.regulated,0), pp, isFirstHome, houses).tax;
+    const tot=pp+tx;
+    const ln=loanForType(ltUse, pp, o85, income, isFirstHome, houses, reg, sudo, repay, stressPP);
+    const cl=tot-ln.amt;
     const jn=Math.round(pp*jeonseRate/100), cg=tot-jn;
     const sel=(FIN.type&&FIN.type===t.name)||(!FIN.type&&priceType.indexOf(t.name)===0);
     const cashCmp=v=>myCash>0?(myCash>=v?' ✅':' ❌'):'';
     return `<tr${sel?' style="background:var(--chip)"':''}>
       <td style="text-align:left"><b>${t.name.replace(/^0+/,'')}</b> <span class="muted small">${(+t.area).toFixed(0)}㎡</span></td>
       <td>${eokStr(pp)}</td>
-      <td class="muted">${eokStr(ln)}</td>
+      <td class="muted">${eokStr(tx)}</td>
+      <td>${ln.amt>0?`<b style="color:var(--accent)">${eokStr(ln.amt)}</b>`:'<span class="pill bad small">불가</span>'}</td>
       <td style="color:var(--accent2)"><b>${eokStr(cl)}</b><span class="small">${cashCmp(cl)}</span></td>
       <td>${jeonseBlocked?'<span class="muted">불가</span>':`<b style="color:var(--accent2)">${eokStr(cg)}</b><span class="small">${cashCmp(cg)}</span>`}</td>
     </tr>`;
   }).join('');
+  const cmpList = LOANTYPES.map(lt=>({lt, r:loanForType(lt, price, over85, income, isFirstHome, houses, reg, sudo, repay, stressPP)}));
 
   let h=`<div class="card"><h2>💰 타입별 필요현금 — 한눈에</h2>
-    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>대출<br>가능</th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th></tr></thead><tbody>${typeRows}</tbody></table></div>
-      <div class="small muted" style="margin-top:8px">①실입주·②전세끼고 = 총원가 − (주담대/전세보증금) 뺀 <b>내 현금</b>. ${myCash>0?'✅충분/❌부족.':'보유현금 넣으면 ✅❌ 표시.'} <span class="muted small">가정: LTV ${ltv}%·DSR ${FIN.dsr||40}%·금리 ${FIN.rate||4}%·전세가율 ${jeonseRate}%</span></div>`:''}
+    ${price>0?`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px">
+      <label style="display:flex;align-items:center;gap:4px">월소득 <input type="number" value="${income||''}" placeholder="월" onchange="var e=document.getElementById('m_income');if(e)e.value=this.value;analyze(false)" style="width:62px;padding:4px 6px">만</label>
+      <label style="display:flex;align-items:center;gap:4px">대출유형 <select onchange="var e=document.getElementById('f_loantype');if(e)e.value=this.value;analyze(false)" style="width:auto;padding:4px 6px"><option value="자동"${ltSel==='자동'?' selected':''}>자동(${isFirstHome?'생애최초':'일반'})</option>${LOANTYPES.map(x=>`<option value="${x}"${ltSel===x?' selected':''}>${LOANLABEL[x]}</option>`).join('')}</select></label>
+      <label style="display:flex;align-items:center;gap:4px">보유현금 <input type="number" value="${myCash||''}" placeholder="만원" onchange="var e=document.getElementById('f_cash');if(e)e.value=this.value;analyze(false)" style="width:72px;padding:4px 6px">만</label>
+    </div>`:''}
+    ${typeRows?`<div style="overflow-x:auto"><table><thead><tr><th>타입</th><th>분양가</th><th>취득세</th><th>대출가능<br><span class="muted small" style="font-weight:400">${LOANLABEL[ltUse]}</span></th><th>① 실입주<br>필요현금</th><th>② 전세끼고<br>필요현금</th></tr></thead><tbody>${typeRows}</tbody></table></div>
+      <div class="small muted" style="margin-top:8px">필요현금 = <b>분양가 + 취득세 − 대출</b> <span class="muted small">(순수 주택가격 기준·옵션 제외)</span>. ${myCash>0?'✅충분/❌부족.':'보유현금 넣으면 ✅❌.'}</div>
+      <div class="res-block" style="margin-top:10px;border-color:var(--accent2)"><h3 style="font-size:13px">🏦 이 집·소득에 가능한 대출 — 여러 시나리오 <span class="muted small">${priceType||''} ${eokStr(price)}</span></h3>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${cmpList.map(c=>`<div style="flex:1;min-width:112px;border:1px solid var(--line);border-radius:8px;padding:6px 8px${c.lt===ltUse?';background:var(--chip);border-color:var(--accent)':''}"><div class="small"><b>${LOANLABEL[c.lt]}</b></div>${c.r.amt>0?`<div><b style="color:var(--accent)">${eokStr(c.r.amt)}</b></div><div class="muted small">${c.r.note||''}</div>`:`<div class="muted small">불가</div><div class="muted small">${c.r.why||''}</div>`}</div>`).join('')}</div>
+        <div class="small muted" style="margin-top:6px">💡 정책대출(신생아·보금자리·디딤돌)은 <b>집값·소득·85㎡ 상한</b> 충족 시 <b>저금리·DSR 미적용</b>이라 더 받을 수 있어요. 위 <b>대출유형</b>을 바꾸면 표가 갱신됩니다.</div>
+      </div>`:''}
     ${price<=0?`<div class="note" style="border-color:var(--warn)">⏳ <b>분양가 미확보</b> — ${CFG._scraped?'청약홈 실시간 수집분이라 아직 분양가가 안 들어왔습니다(API 동기화 후 타입별 자동 반영).':'이 공고는 타입별 분양가가 아직 수집되지 않았습니다(API 미동기화 또는 무순위/오피스텔 등).'}
       ${(CFG.types&&CFG.types.length)?`<div class="small" style="margin-top:5px">확인된 타입: <b>${CFG.types.map(t=>t.name.replace(/^0+/,'')).join(' · ')}</b></div>`:''}
       <div class="small" style="margin-top:5px;color:var(--accent)">👉 <b>자금 가정 → 분양가(만원)</b> 칸에 숫자를 넣으면 취득세·대출·전세 필요현금까지 즉시 계산됩니다.</div></div>`:''}
     ${price>0?`<div class="sub" style="margin:16px 0 6px;font-weight:700;color:var(--txt)">📋 계산 상세 — 타입 <select onchange="var ft=document.getElementById('f_type'); if(ft){ft.value=this.value;} analyze(false);" style="font-size:13px;padding:5px 8px;width:auto;display:inline-block;font-weight:600">${(CFG.types||[]).filter(t=>Number(t.price)>0).map(t=>`<option value="${t.name}"${(FIN.type===t.name||(!FIN.type&&priceType.indexOf(t.name)===0))?' selected':''}>${t.name.replace(/^0+/,'')} (${(+t.area).toFixed(0)}㎡) ${eokStr(t.price)}</option>`).join('')}</select> 기준 <span class="muted small" style="font-weight:400">(위 표와 동일 가정)</span></div>`:''}
     <div${price>0?'':' style="display:none"'}>
-    <div style="border:2px solid var(--accent);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--chip)">
-      <div style="font-weight:800;font-size:15px;margin-bottom:10px">${priceType||'선택 타입'} · 분양가 <span style="color:var(--accent)">${eokStr(price)}</span></div>
-      <div style="display:flex;gap:6px;text-align:center">
-        <div style="flex:1;background:var(--card);border-radius:10px;padding:10px 4px"><div class="muted small">지금 필요<br>계약금 ${downPct}%</div><div style="font-size:17px;font-weight:800;color:var(--accent)">${eokStr(downPay)}</div></div>
-        <div style="flex:1;background:var(--card);border-radius:10px;padding:10px 4px"><div class="muted small">입주 시<br>대출</div><div style="font-size:17px;font-weight:800">${eokStr(loan)}</div></div>
-        <div style="flex:1;background:var(--card);border-radius:10px;padding:10px 4px"><div class="muted small">입주 시<br>내 현금</div><div style="font-size:17px;font-weight:800;color:var(--gold)">${eokStr(cashLive)}</div></div>
-      </div>
-      ${myCash>0?`<div class="kv" style="margin-top:10px"><span>내 보유현금 ${eokStr(myCash)}</span><span class="r">${myCash>=cashLive?`<span class="pill ok">실입주 가능</span> 여유 ${eokStr(myCash-cashLive)}`:`<span class="pill bad">${eokStr(cashLive-myCash)} 부족</span>`}</span></div>`:`<div class="small muted" style="margin-top:8px">💰 자금가정에 <b>보유현금</b>을 넣으면 가능/부족을 판정해요.</div>`}
-      <div class="small" style="margin-top:8px;line-height:1.7">ⓘ 대출은 <b>${loanWhich}</b>에 막혀 <b>${eokStr(loan)}</b>${(loanWhich.indexOf('DSR')>=0&&cap!==Infinity&&cap>loan)?` — LTV·가격한도(${eokStr(cap)})는 더 높지만 <b>소득(DSR)</b>이 한도예요`:''}.${govList.length?`<br>✅ <b>정책대출 가능</b>: ${govList[0].name} ~${eokStr(govList[0].limit)} (저금리·DSR 미적용) — 더 받을 수 있어요.`:''}${!jeonseBlocked?`<br>🏠 전세 끼고라면 내 현금 <b>${eokStr(cashGap)}</b>.`:`<br>⛔ 이 단지는 거주의무로 <b>전세 끼고 불가</b>(직접 거주).`}</div>
-    </div>
-    <details style="margin-bottom:8px"><summary style="cursor:pointer;font-weight:700;color:var(--accent2);padding:10px 12px;background:var(--chip);border-radius:10px;user-select:none">🔎 계산 근거 자세히 — 취득세·중도금·대출·정책대출·전세 (눌러서 펼치기)</summary>
+    <details style="margin-bottom:8px"><summary style="cursor:pointer;font-weight:700;color:var(--accent2);padding:10px 12px;background:var(--chip);border-radius:10px;user-select:none">🔎 한 타입 계산 근거 자세히 — 취득세·중도금·대출·정책대출·전세 (눌러서 펼치기)</summary>
     <div style="margin-top:10px">
     <div class="res-block"><h3>취득 원가</h3>
       <div class="kv"><span>분양가 ${priceType?`<span class="muted small">${priceType}</span>`:''}</span><span class="r">${won(price)}만 <span class="muted small">(${eokStr(price)})</span></span></div>
@@ -1411,7 +1451,7 @@ function moneyHTML(){
 const ME_FIELDS=['sido','gugun','resideMonths','householder','houses','nohomeYears','dependents','acctMonths','payCount','savings','deposit','hhSize','dual','income','asset','car','marital','marryYears','children','newborn','firstever','age','pastWin'];
 function collectMe(){ ME={}; ME_FIELDS.forEach(f=>ME[f]=$('m_'+f).value); }
 function restoreMe(){ ME_FIELDS.forEach(f=>{ if(ME[f]!=null&&$('m_'+f)) $('m_'+f).value=ME[f]; }); }
-const FIN_FIELDS=['type','price','over85','optExpand','optAC','optEtc','etc','ltv','firstLtv','loancap','dsr','rate','term','repay','jeonse','jeonseRate','duty','newhome','taxOverride','cash'];
+const FIN_FIELDS=['type','price','over85','optExpand','optAC','optEtc','etc','ltv','firstLtv','loantype','loancap','dsr','rate','term','repay','jeonse','jeonseRate','duty','newhome','taxOverride','cash'];
 function populateTypeSelect(){
   const sel=$('f_type'); if(!sel) return;
   const cur=sel.value;
