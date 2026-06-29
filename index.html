@@ -870,15 +870,16 @@ function analyze(switchTab){
     if(req.ok===false) return {icon:'❌', cls:'bad', msg:req.why};
     if(as.ok===false)  return {icon:'❌', cls:'bad', msg:as.why};
     if(inc.ok===false) return {icon:'❌', cls:'bad', msg:'소득 초과'};
-    if(inc.ok==='lottery'){ // 민영 추첨 소득완화 → 부동산 3.31억 조건
-      if(myAsset>0 && myAsset>RULES_ASSET.민영.부동산) return {icon:'❌', cls:'bad', msg:`소득·부동산(${eokStr(RULES_ASSET.민영.부동산)}) 초과`};
-      return {icon:'△', cls:'warn', msg:'추첨만 가능 (부동산 3.31억↓)'};
+    // 민영 추첨(소득완화) → 부동산 3.31억 조건. ※우선·일반(소득 충족)은 자산요건 미적용(생활법령): 소득 들면 자산 많아도 신청 가능
+    if(inc.ok==='lottery'){
+      if(myAsset>0 && myAsset>RULES_ASSET.민영.부동산) return {icon:'❌', cls:'bad', msg:`소득기준 초과 + 부동산 ${eokStr(RULES_ASSET.민영.부동산)} 초과 → 추첨 불가`};
+      return {icon:'△', cls:'warn', msg:'소득기준 초과 → 추첨만 가능 (부동산 3.31억↓)'};
     }
     if(req.ok===null)  return {icon:'❓', cls:'warn', msg:req.why};
     if(inc.ok===null)  return {icon:'❓', cls:'warn', msg:'소득 입력 필요'};
-    // 민영 신혼/생초/신생아: 소득은 우선·일반 충족이나 부동산 3.31억 초과 → 추첨은 불가, 우선·일반 자산요건은 공고별 확인 필요
+    // 소득 우선·일반 충족 → 신청 가능(자산 무관). 자산 초과 시엔 '추첨 단계만' 닫힘을 안내(우선·일반은 그대로 가능)
     if(grp==='민영' && ['신혼부부','생애최초','신생아'].includes(specialKey(type||'')) && myAsset>0 && myAsset>RULES_ASSET.민영.부동산)
-      return {icon:'△', cls:'warn', msg:`부동산 ${eokStr(RULES_ASSET.민영.부동산)} 초과 — 추첨 불가 (우선·일반 자산요건은 공고 확인)`};
+      return {icon:'✅', cls:'ok', msg:'신청 가능 (우선·일반) · 추첨 단계만 자산 초과로 제외'};
     return {icon:'✅', cls:'ok', msg:'신청 가능'};
   }
   const assetOf=()=>{ const a = mode==='신혼희망타운'?RULES_ASSET.신혼희망:RULES_ASSET[grp]||{};
