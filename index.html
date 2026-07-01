@@ -158,7 +158,8 @@
         <summary>🎯 가점 항목 <span class="tagx">민영 가점제</span> <span class="muted small" style="font-weight:400">선택·해당 시</span></summary>
         <div class="gbody"><div class="grid">
           <div class="field"><label>무주택 기간 (년) <span class="muted small">만30세·혼인 기산</span></label><input id="m_nohomeYears" type="number" min="0" step="0.5" placeholder="예: 5"></div>
-          <div class="field"><label>부양가족 수 (본인 제외, 명)</label><input id="m_dependents" type="number" min="0" placeholder="예: 2"></div>
+          <div class="field"><label>부양가족 수 <span class="muted small">본인 제외 · 직계만</span></label><input id="m_dependents" type="number" min="0" placeholder="예: 2">
+            <div class="small muted" style="margin-top:5px;line-height:1.55">⚠️ <b>세대원 수 ≠ 부양가족</b>. 배우자·직계존비속만 넣으세요 — <b>처조카·형제자매·조카는 제외</b>(방계). 부모·장인·장모는 <b>3년 이상 같은 등본+무주택</b>이어야 인정(2026.4 개정: 1년→3년).</div></div>
           <div class="field"><label>청약통장 가입 (개월)</label><input id="m_acctMonths" type="number" min="0" placeholder="예: 40"></div>
           <div class="field"><label>통장 예치금 (만원, 민영)</label><input id="m_deposit" type="number" min="0" placeholder="예: 400"></div>
         </div></div>
@@ -789,6 +790,7 @@ function analyze(switchTab){
       ${houses>0?'⚠️':'✅'} 세대 전원 무주택 ${houses>0?`<span class="muted small">(보유 ${houses}채 — 특공·공공 일반은 탈락 가능)</span>`:'<span class="muted small">(분양권·오피스텔도 주택 수 포함될 수 있음)</span>'}<br>
       ${Number(m.pastWin)===1?'⚠️':'✅'} 최근 당첨·재당첨 제한 없음 ${Number(m.pastWin)===1?'<span class="muted small">(제한 기간 중이면 부적격)</span>':''}<br>
       ✅ 세대원 <b>중복 청약·당첨</b> 없음 <span class="muted small">(같은 공고에 세대원 2명↑ 신청 시 전원 무효)</span><br>
+      ✅ <b>부양가족 = 직계만</b> <span class="muted small">(처조카·형제자매 등 방계 제외 · 직계존속은 3년 등재+무주택 · 세대원 수로 착각 금지)</span><br>
       ✅ <b>거주지·통장·소득·자산·세대주</b> 요건 — 위 판정과 공고문 재확인</div>
     <div class="note" style="border-color:var(--bad);margin-top:10px">🚨 <b>위장전입·위장이혼·통장 매매</b> 등 부정청약 = <b>10년 청약 제한 + 형사처벌(3년↓ 징역/3천만원↓ 벌금) + 계약취소·주택환수·계약금(10%) 몰수</b>. 거주지·세대 요건은 반드시 실제 사실대로만 넣으세요.</div>
   </div>`);
@@ -1675,7 +1677,7 @@ const FIELD_TIPS={
   m_income:"세대구성원(본인·배우자·직계존비속 등 가족) 전원의 세전 월소득 합계. 가족관계 없는 동거인은 합산하지 않습니다(각자 본인 세대 기준).",
   m_age:"만 나이. 무주택기간 가점이 만 30세부터 계산되므로 정확히 넣으면 가점이 정확해집니다.",
   m_nohomeYears:"무주택으로 지낸 기간. 가점은 만30세(30세 전 혼인 시 혼인일)부터 계산. ▸과거 집을 팔았으면 처분일부터 무주택기간 다시 시작 ▸분양권·입주권은 주택 수에 포함(2018.12.11 이후 취득) ▸전용 60㎡↓·공시가 저가 1채는 일부 특공에서 무주택 간주.",
-  m_dependents:"등본상 함께 사는 부양가족 수(본인 제외). 민영 가점 최대 35점(가장 큰 비중).",
+  m_dependents:"⚠️ 세대원 수가 아니라 '부양가족'입니다. 배우자·직계존비속(부모·자녀·손자녀)만 — 처조카·형제자매·조카 등 방계는 세대원이어도 제외. 부모·장인·장모(직계존속)는 청약자가 세대주이고 3년 이상 같은 등본에 무주택으로 등재돼야 인정(2026.4 개정으로 1년→3년 강화). 미혼 자녀 30세 이상도 3년 등재 필요. 급조하면 위장전입 부정청약(10년 제한+형사처벌) 위험. 민영 가점 최대 35점.",
   m_acctMonths:"청약통장 가입 후 지난 개월. 1순위 자격 + 민영 가점(최대 17점). 오래될수록 유리.",
   m_payCount:"공공분양 전용. 매월 1회씩 인정(한 달에 여러 번 넣어도 1회). 전용 40㎡ 이하 당락을 가릅니다.",
   m_savings:"공공분양 핵심. 매월 납입액 중 인정한도(2024.11~ 25만·이전 10만)까지 누적된 금액. 청약홈>청약통장>가입내역에서 '인정금액'으로 조회. 전용 40㎡ 초과 당락.",
